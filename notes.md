@@ -1,8 +1,4 @@
-## Monday, 1/8 Stop. Collaborate, and listen by Henry Zheng
-
-**Tech News:** [Senate bill to reverse net neutrality repeal gains 30th co-sponsor, ensuring floor vote](http://thehill.com/policy/technology/367929-senate-bill-to-reverse-net-neutrality-repeal-wins-30th-co-sponsor-ensuring)
-
-**Bonus:** [Nebraska Introduces Law to Reinstate Net Neutrality](https://www.inverse.com/article/39994-nebraska-proposes-reinstate-net-neutrality)
+## Monday, 1/8 Stop. Collaborate, and listen 
 
 ## Server Only Functions
 ### listen - `<sys/socket.h>`
@@ -76,9 +72,7 @@ connect(sd, results->ai_addr, results->ai_addrlen);
 ```
 
 ---
-## Friday, 1/5 Stop. Collaborate, and listen by Mansour Elsharawy
-
-**Tech News:** [Spectre and Meltdown Security Bugs Discovered Simultaneously in our Processor Chips](https://www.wired.com/story/meltdown-spectre-bug-collision-intel-chip-flaw-discovery/)
+## Friday, 1/5 Stop. Collaborate, and listen 
 
 _Finally, how to do networking in C!_
 
@@ -151,9 +145,7 @@ Here are some of the fields we will need to use and the values we can set them t
 
 ---
 
-## Wednesday, 1/3 Socket to Me by Sonal Parab
-
-**Tech News:** [Amazon Patents Blended Reality Mirror for Virtual Dress-Up](https://www.geekwire.com/2018/amazon-patents-blended-reality-mirror-shows-wearing-virtual-clothes-virtual-locales/)
+## Wednesday, 1/3 Socket to Me
 
 ### Network Ports  
 Allow a single computer to run multiple services.  
@@ -183,10 +175,7 @@ You can select any port, as long as it won't conflict with a service running on 
 * Uses the User Datagram Protocol.    
 
 ---
-## Tuesday, 1.2.18: Socket to Me, by Ida Wang
-
-**Tech News:** [Gaming addiction classified as disorder by WHO](http://www.bbc.com/news/technology-42541404)
-
+## Tuesday, 1.2.18: Socket to Me
 ### Socket
 A connection between 2 programs over a *network*.  
 A socket corresponds to an IP (internet protocol) Address / Port pair.
@@ -218,9 +207,7 @@ can also be written as
 `:: 4f : 13c2 : 9 : a2d2`
 
 ---
-## Monday, 12/18 Always tip your servers by Jerome Freudenberg
-
-**Tech news:** [Twitter cracks down on hate](https://www.washingtonpost.com/news/the-switch/wp/2017/12/18/twitter-purge-suspends-account-of-far-right-leader-who-was-retweeted-by-trump/?utm_term=.56ee6be9cd9b)
+## Monday, 12/18 Always tip your servers 
 
 #### Homework Tips
 * You can pass variable (ACK) to confirm connections between server and client
@@ -248,9 +235,7 @@ can also be written as
 ---
 
 
-## Monday, 12/11 Creating a handshake agreement by William Hong
-
-**Tech news:** [All abord the Tesla bandwagon](https://www.investopedia.com/news/teslas-selfdriving-truck-sees-early-success/)
+## Monday, 12/11 Creating a handshake agreement 
 
 Do-Now: Consider a program that uses pipes in order to communicate between 2 separate executable files. One file is a "server" that is always running. The other is a "client." Design a process by which both files can connect to each other and verify that each can send and receive data. Try to keep it as simple as possible
 
@@ -283,11 +268,7 @@ Note that shared memory size is limited and what data we can put into shared mem
 
 ---
 
-## Thursday, 12/07 What's A Semaphore? To Control Resources! by Jackie Xu
-
-**Interesting Tech News:** [Facebook Usage Among Teens Set to Drop in U.S.](https://www.bloomberg.com/news/articles/2017-08-21/facebook-usage-among-teens-set-to-drop-in-u-s-emarketer-says)
-
-Don't forget, each new post should go above the one before. If you are late in posting, please put yours in the correct position.
+## Thursday, 12/07 What's A Semaphore? To Control Resources! 
 
 ### More Semaphore Methods!
 
@@ -341,11 +322,7 @@ struct sembuf {
 
 ---
 
-## Tuesday, 12/05 Semaphores by Max Chan
-
-**Tech News**:  [How the Bot Stole Christmas](https://www.nytimes.com/2017/12/06/business/bots-shopping-christmas-holidays.html?rref=collection%2Fsectioncollection%2Ftechnology&action=click&contentCollection=technology&region=stream&module=stream_unit&version=latest&contentPlacement=2&pgtype=sectionfront)
-
-We learned what semaphores are, and how to deal with them.
+## Tuesday, 12/05 Semaphores 
 
 ### Semaphores
 * IPC construct used to control access to a shared resource (like a file, shared memory, etc.)
@@ -386,12 +363,7 @@ semget(KEY, AMOUNT, FLAG)
 * AMOUNT: How many semaphores
 * FLAGS: INcludes permissions, combine bitwise
 
-## Monday, 12/04 Memes by Anthony Hom
-**Tech News**: [Go Oreo ... Towards the Androids](https://www.digit.in/mobile-phones/android-oreo-go-announced-will-come-with-lightweight-apps-and-data-saving-features-for-low-end-phone-38482.html)
-
-**Yes, another tech news**: [Texting 911 Efficiency for Minnesota](http://m.startribune.com/text-to-911-is-minnesota-s-new-emergency-texting-service/462075943/?section=local)
-
-We continued talking about how we can manipulate shared memory for class.
+## Monday, 12/04 Memes 
 
 ### shmdt
 * Detach a variable from a shared memory segment
@@ -424,10 +396,8 @@ shmctl (descriptor, command, buffer)
 
 ---
 
-## Friday, 12/01: Sharing is Caring by Shakil Rafi
-**Interesting tech news**: [MacOSX High Sierra had a major security hole](https://www.cnet.com/how-to/how-to-fix-the-macos-high-sierra-password-bug/)
+## Friday, 12/01: Sharing is Caring 
 
-We learned about how to use shared memory
 
 ### What is shared memory?
 Shared memory is a segment of memory that can be access by any process using a key. This memory is not freed when all processes exit.
@@ -463,11 +433,7 @@ You can do five different operations using shared memory using <sys/shm.h>, <sys
 
 ---
 
-# 11.28.17 - C, the ultimate hipster, using # decades before it was cool.
-
-
-**Interesting Tech News:** [Useless $2,100 techno-contraption](https://www.digitaltrends.com/cool-tech/bionic-double-hand-prosthesis/)
-
+# 11.28.17 - C, the ultimate hipster, using # decades before it was cool 
 ### \#
 Used to provide preprocessor instructions.  
 These directives are handled by gcc first.
