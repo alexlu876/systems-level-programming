@@ -1,37 +1,167 @@
-## Monday, 1/8 Stop. Collaborate, and listen 
+# 1.11.18 - Cisco in an hour
 
+### Layer Models of Networking
+Due to the complexity of network communications, the topic is often conceptualized into distinct layers so people can work on specific components rather than everything at once.
+
+The bottom layer is the most concrete, with each subsequent layer becoming more abstract (relying less on the physical connection and more on code).
+
+There are various competing models, including the OSI (Open Systems Interconnections) and TCP/IP models.
+
+### TCP/IP Model Layers
+1. Application (the program itself)
+2. Transport (dealing with things like TCP protocol; transporting data effectively)
+3. Internet (connect 2 computers in different networks, hence the name inter-net)
+4. Link (lowest layer; connect computers to each other)
+
+### Link Layer
+Point-to-point transmission between devices on the same (local) network.  
+Combines physcially connected computers with basic addressing and transmission protocols.
+
+### Physical Connection
+- How to transmit bits between two computers.
+- electrons, photons (fiber-optics), radio waves...
+### A brief history of physical connections
+#### thicknet
+- A single coaxial cable runs along the network (computers all connect to that cable)
+- "vampire taps" cut into the cable and connect to a computer
+#### thinnet
+- A *thinner* coaxial cable runs along the network
+- T-connectors connect computers to the main cable
+- Still must cut the cable and suck out the bits, but slightly more civilized than vampire taps
+
+With **thicknet** and **thinnet**, adding more computers to the network weakened the signal.
+
+#### token ring
+- Each computer is connected in a ring to each other
+- Only one computer has command of network resources at a time (i.e. "having the token")
+- The network sends a "token" throughout the ring, which contains the identity of the computer allowed to use the network. All other computers must wait to use the network.
+- **downsides:** IBM owned the patent, and so everyone had to pay IBM to use it
+
+#### ethernet (what we use today)
+- multiple computers connect to a single hub or switch
+
+**hub:** broadcasts the data to all the computers  
+**switch:** sends dat ato a specific computer
+
+---
+# 1.5.18, 1.8.18 - Stop. Collaborate, and listen
+
+### socket - `<sys/socket.h>`
+- creates a socket
+- returns a socket descriptor (int that works like a file descriptor)
+- at this point, it is an unnamed socket (not bound to a port)
+
+#### `socket(domain, type, protocol)`
+- **domain:** type of address (`AF_INET` or `AF_INET6`)
+- **type:** `SOCK_STREAM` or `SOCK_DGRAM`
+- **protocol:**  
+    combination of domain and type settings  
+    if set to 0 the OS will set to correct protocol (TCP or UCP)
+- **i.e.** `int ds = socket(AF_INET, SOCK_STREAM, 0);`
+
+#### `struct addrinfo`
+System library calls use a `struct addrinfo` to represent network addresses (containing information like IP address, port, protocol, ...).
+
+**.ai_family**
+- AF_INET: IPv4
+- AF_INET6: IPv6
+- AF_UNSPEC: either one
+
+**ai_socktype**
+- SOCK_STREAM
+- SOCK_DGRAM
+
+**ai_flag**
+- AI_PASSIVE: automatically set to any incoming IP address
+
+**ai_addr**
+- pointer to a `struct sockaddr` containing the IP address
+
+**ai_addrlen**
+- size of the address in bytes
+
+
+### getaddrinfo - `<sys/types.h>`, `<sys.socket.h>`, `<netdb.h>`
+Lookup information about the desired network address and get one or more matching `struct addrinfo` entries.
+
+#### `getaddrinfo(node, service, hints, results);`
+- **node:**  
+    string containing an IP address or hostname to lookup  
+    if `NULL`, use the local machine's IP address  
+- **service:**  
+    string with a port number or service name (if the service is in `/etc/services`)
+- **hints:**  
+    pointer to a `struct addrinfo` used to provide settings for the lookup (type of address, etc.)
+- **results:**  
+    pointer to a different `struct addrinfo` that will be a linked list containign entries for each matching address  
+    `getaddrinfo` will allocate memory for these structs
+
+#### using `getaddrinfo`
+```c
+struct addrinfo * hints, * results;
+hints = (struct addrinfo *)calloc(1, sizeof(struct addrinfo));
+
+hints->ai_family = AF_INET;
+hints->ai_socktype = SOCK_STREAM; // TCP socket
+hints->ai_flags = AI_PASSIVE; // only needed on server
+
+getaddrinfo(NULL, "80", hints, &results); // server sets node to NULL
+
+// client
+getaddrinfo("149.89.150.100", "9845", hints, &results);
+
+// do stuff...
+
+free(hints);
+freeaddrinfo(results);
+```
 ## Server Only Functions
+### bind - `<sys/socket.h>`
+- binds the socket to an address and port
+- returns 0 (success) or -1 (failure)
+
+#### `bind(socket descriptor, address, address length)`
+- **socket descriptor:** return value of `socket`
+- **address:** pointer to a `struct sockaddr` representing the address
+- **address length:** size of the address, in bytes
+- **address** and **address length** can be retrived from `getaddrinfo`
+
+#### Using `bind`
+```c
+// create socket
+int sd; // etc...
+
+struct addrinfo *hints, *results;
+// use getaddrinfo
+
+bind(sd, results->ai_addr, results->ai_addrlen);
+```
+
 ### listen - `<sys/socket.h>`
-- Set a socket to passively await a connection.
-- Needed for stream sockets.
-- Does not block.
+Set a socket to *passively* await a connection.  
+Needed for stream sockets.  
+Does not block.
 #### listen(socket descriptor, backlog)
-- socket descriptor
-	- return value of socket
-- backlog
-	- number of connections that can be queued up
-	- depending on the protocol, this may not do much
+- **socket descriptor:** return value of `socket`
+- **backlog:**  
+    number of connections that can be queued up  
+    depending on the protocol, this may not do much
 
 ### accept - `<sys/socket.h>`
-- Accept the next client in the queue of a socket in the listen state.
-- Used for stream sockets.
-- Performs the server side of the 3 way handshake.
-- Creates a new socket for communicating with the client, the listening socket is not modified.
-- Returns a descriptor to the new socket.
+Accept the next client in the queue of a socket in the listen state.  
+Used for stream sockets.  
+Performs the server side of the 3 way handshake.  
+Creates a new socket for communicating with the client, the listening socket is not modified.  
+Returns a descriptor to the new socket.  
+*Blocks* until a connection is made.
 #### `accept(socket descriptor, address, address length)`
-- socket descriptor
-	- descriptor for listening socket
-- address
-	- pointer to a `struct sockaddr_storage` that will contain information about the new socket after accept succeeds
-- address length
-	- pointer to the variable that will contain the size of the new socket address after accept succeeds
+- **socket descriptor:** descriptor for listening socket
+- **address:** pointer to a `struct sockaddr_storage` that will contain information about the new socket after accept succeeds
+- **address length:** pointer to the variable that will contain the size of the new socket address after accept succeeds
 
 Using listen and accept:
 ```c
 //create socket
-int sd;
-sd = socket(AF_INET, SOCK_STREAM, 0);
-
 //use getaddrinfo and bind
 
 listen(sd, 10);
@@ -44,146 +174,71 @@ client_socket = accept(sd, (struct sockaddr *)&client_address, &sock_size);
 ```
 
 ## Client Only Functions
+
 ### connect - `<sys/socket.h>`, `<sys/types.h>`
-- Connect to a socket currently in the listening state.
-- Used for stream sockets.
-- Performs the client side of the 3 way handshake.
-- Binds the socket to an address and port.
-- Blocks until a connection is made (or fails).
+Connect to a socket currently in the listening state.  
+Used for stream sockets.  
+Performs the client side of the 3 way handshake.  
+Binds the socket to an address and port.  
+Blocks until a connection is made (or fails).
 
 #### `connect(socket descriptor, address, address length)`
-- address
-	- pointer to a `struct sockaddr` representing the address
-- address length
-	- size of the address, in bytes
-- address and address length can be retrieved from `getaddrinfo()`
-- Notice that the arguments mirror those of `bind()`.
+- **address:** pointer to a `struct sockaddr` representing the address
+- **address length:** size of the address, in bytes
+- **address** and **address length** can be retrieved from `getaddrinfo`
+- Notice that the argunments mirror those of `bind()`.
 
-Using connect:
+Using Connect:
 ```c
-//create socket
-int sd;
-sd = socket(AF_INET, SOCK_STREAM, 0);
-
+// create socket
 struct addrinfo * hints, * results;
-// use getaddrinfo (not shown)
-
+// getaddrinfo
 connect(sd, results->ai_addr, results->ai_addrlen);
 ```
 
 ---
-## Friday, 1/5 Stop. Collaborate, and listen 
+# 1.3.18 - Socket to Me (cont.)
+### Network Ports
+Allow a single computer to run multiple services.
 
-_Finally, how to do networking in C!_
+A socket combines an P address and port.   
+Each computer has 2^16 (65,536) ports.
 
-#### Extra Libraries That You Haven't Seen Before But Will Need Now
-```
-<sys/socket.h>
-<netdb.h>
-```
+Some ports are reserved for specific services:
+- 80: http
+- 22: ssh
+- 443: ssl
 
-### socket()
-* Creates a socket!
-* Returns a socket descriptor (an `int` that works like a file descriptor)
-* Syntax: `socket(DOMAIN,TYPE,PROTOCOL)`
-* DOMAIN is the type of address to be used, use `AF_INET` or `AF_INET6` for IPv4 and IPv6 addresses, respectively.
-* TYPE is the type of socket you plan to use, use `SOCK_STREAM` for stream socket and `SOCK_DGRAM` for datagram socket.
-* PROTOCOL is the combination of domain and type - If set to 0, the OS will set it to the correct type (TCP or UDP) (Best to just set it to 0)
-
-**Example:**
-```c
-int sd = socket(AF_INET,SOCK_STREAM,0);
-```
-
-### struct addrinfo
-
-The system library uses `struct addrinfo` to represent network address information (like the IP address, port, and protocol)
-Here are some of the fields we will need to use and the values we can set them to:
-
-#### .ai_family
-* `AF_INET` for an IPv4 address
-* `AF_INET6` for an IPv6 address
-* `AF_UNSPEC` for an unspecified type of address
-
-#### .ai_socktype
-* `SOCK_STREAM` as specified above
-* `SOCK_DGRAM` as specified above
-
-#### .ai_flags
-* `AI_PASSIVE` Automatically sets to any incoming IP address (good for servers!)
-
-#### .ai_flags
-* A pointer to a `struct sockaddr,` which contains the IP address
-
-#### .ai_addrlen
-* Size of the IP address
-
-
-### getaddrinfo()
-* This method is used to lookup information about the desired network address and get one or more matching `struct addrinfo` entries.
-* Syntax: `getaddrinfo(NODE,SERVICE,HINTS,RESULTS)`
-* NODE is a string containing IP address or hostname to lookup - If set to `NULL`, it will use the loopback address.
-* SERVICE is a string with a port number or service name (if the service is in `/etc/services`) (And yes, the port number is in a string.)
-* HINTS is a pointer to a `struct addrinfo` used to provide the settings for the lookup.
-* RESULTS is a pointer toa `struct addrinfo` that will be a linked list containing entries for each matching address (memory allocation handled automagically!).
-
-### bind() (used by servers only)
-* Binds a socket to an address and port
-* Returns 0 on success, -1 on failure (and sets our good old friend errno)
-* Syntax: `bind(SOCKET_DESCRIPTOR,ADDRESS,ADDRESS_LENGTH)`
-* `SOCKET_DESCRIPTOR` is the return value of `socket()`
-* The `ADDRESS` and `ADDRESS_LENGTH` fields can be retrieved from the results of `getaddrinfo().`
-
-### listen() (used by servers only)
-* Set a socket to passively wait for a connection.
-* Necessary for stream sockets
-* DOES NOT BLOCK! THIS IS NOT READ()!
-* Syntax: `listen(SOCKET_DESCRIPTOR,BACKLOG)`
-* `BACKLOG` is the maximum number of connections that can be queued up at a time (may not do much depending on protocol)
-
-...And that's all folks! (For now)
-
----
-
-## Wednesday, 1/3 Socket to Me
-
-### Network Ports  
-Allow a single computer to run multiple services.  
-* A socket combines an IP address and port.  
-  
-Each computer has 2^16 (65,536) ports.   
-Some ports are reserved for specific services.
-* 80: http  
-* 22: ssh  
-* 443: ssl
-
-You can select any port, as long as it won't conflict with a service running on the desired computer.   
-* ports < 1024 are reserved and should generally not be used
-* `/etc/services` will have a list of registered ports for your local system
+You can select any port, as long as it won't conflict  with a service running on the desired computer.  
+Ports < 1024 are reserved and should generally not be used.   
+`/etc/services/` will have a list of registered ports for your local system
 
 ### Network Connection Types
+#### Stream Sockets
+- Works the most like a regular file.  
+- Reliable 2 way communication.  
+- Must be connected on both ends.  
+- Data is received in the order it was sent (not as easily done as it sounds).  
+- Most use the Transmmission Control Protocol (TCP).
 
-#### Stream Sockets  
-* Reliable 2 way communication.  
-* Must be connected on both ends.  
-* Data is received in the order it is sent. (not as easily done as it sounds)  
-* Most use the Transmission Control Protocol (TCP).  
-
-#### Datagram Sockets  
-* "Connectionless" - an established connection is not required.  
-* Data sent may be received out of order (or not at all).  
-* Uses the User Datagram Protocol.    
+#### Datagram Sockets
+- "connectionless" - an established connection is not required
+- Data sent may be received out of order (or not at all).
+- Puts more work on the programmer as opposed to the protocol itself.
+- Use the User Datagram Protocol.
+- Seem awful, but much faster than stream sockets.
 
 ---
-## Tuesday, 1.2.18: Socket to Me
+# 1.2.18 - Socket to Me
+
 ### Socket
 A connection between 2 programs over a *network*.  
 A socket corresponds to an IP (internet protocol) Address / Port pair.
 
 #### To use a socket
 1. create the socket (kind of like creating the WKP)
-2. bind it to an address and port
-3. listen (creator) / initiate a connection (client)
+2. bind it to an address and port (server)
+3. listen and accept (server) / connect (client)
 4. send / receive data
 
 ### IP Addresses
@@ -192,248 +247,287 @@ IP addresses come in 2 flavors, IPv4 (the main standard) and IPv6 (what should b
 Addresses are allocated in blocks to make routing easier.
 
 **IPv4:** 2 byte addresses of the form `[0-255].[0-255].[0-255].[0-255]`  
-- Each group is called an *octet*.  
-- At most there are 2^32, or ~4.3 billion IPv4 addresses.
+Each group is called an *octet*.  
+At most there are 2^32, or ~4.3 billion IPv4 addresses.
 
 **IPv6:** 16 byte addresses of the form: `[0-ffff]:[0-ffff]:[0-ffff]:[0-ffff]:[0-ffff]:[0-ffff]:[0-ffff]:[0-ffff]`  
-- Each group is known as a *hextet* (although not as standard as the octet).  
-- Leading 0s are ignored.  
+Each group is known as a *hextet* (although not as standard as octet).  
+Leading 0s are ignored.  
 
-Any number of consecutive all 0 hextets can be replaced with `::`
-
-For example:  
+Any number of consecutive all 0 hextets can be replaced with ::  
 `0000 : 0000 : 0000 : 0000 : 004f : 13c2 : 0009 : a2d2`  
-can also be written as  
 `:: 4f : 13c2 : 9 : a2d2`
 
----
-## Monday, 12/18 Always tip your servers 
-
-#### Homework Tips
-* You can pass variable (ACK) to confirm connections between server and client
-  * a more robust method would be to pass an integer and perform an operation on it
-* Put the server in a forever loop and then place a while loop inside that runs until the client exits
-  * Since the pipe is not removed, use sighandler to remove it then exits
-
-#### Forking Server/Client Design Pattern
-* Handshake
-  1) Client connects to server and sends the private FIFO name. Client waits for a response from the server.
-  2) Server receives client’s message and forks off a subserver
-  3) Subserver connects to client FIFO, sending an initial acknowledgement message
-  4) Client receives subserver’s message, removes its private FIFO
-
-* Operation
-  1) Server removes WKP and closes any connections to the client
-  2) Server recreates WKP and waits for a new connection
-  3) Subserver (wkp) and client (pp) send information back and forth
-
-* Pros and Cons
-  * Simple way to handle multiple clients at once
-  * Downside is a lack of communication among clients and subservers (which may not be necessary)
-
+IPv4 Addresses can be represented as 5 0-hextets, 1 ffff hextet, and the IPv4 address:  
+`149.89.150.100` -> `:: ffff : 149.89.150.100`
 
 ---
+# 12.18.17 - Always tip your servers
 
+### forking server/client design pattern:
+An easier way to handle multiple clients at once.  
+Downsides are that aside from the subserver and client, no one can talk to each other (server <--> subserver, client <--> client, etc.). Essentially, there is a lack of communication.
 
-## Monday, 12/11 Creating a handshake agreement 
+### *Handshake*
+1. Client connects to server and sends the private FIFO name. Client wiats for a response from the server.
+2. Server receives client's message and forks off a **subserver**.
+3. Subserver connects to client FIFO, sending an initial acknowledgement message.
+4. Client receives subserver's message, removes its private FIFO. 
 
-Do-Now: Consider a program that uses pipes in order to communicate between 2 separate executable files. One file is a "server" that is always running. The other is a "client." Design a process by which both files can connect to each other and verify that each can send and receive data. Try to keep it as simple as possible
-
-#### Handshake:
-A procedure to ensure that a connection has been established between 2 programs. Both ends of the connection must verify that they can send and receive data to and from each other
-
-#### 3 way handshake setup
-This is useful for handling inter-process communications that keep sending data back and forth
-1) Client sends a message to the server
-2) Server sends a response to the client
-3) Client sends a response back to the server
-
-#### Basic server/client design pattern:
-* A) Setup:
-  * 1) Server creates a FIFO (Well Known Pipe) and waits for a connection
-  * 2) Client creates a “private” FIFO, but it won’t starting listening just yet
-* B) Handshake:
-	* 1) Client connects to server (WKP) and sends the private FIFO name(tells server how to connect and verifies that 		client sent the data)
- 	* 2) Client waits for a response from the server
-  	* 3) Server receives client’s message and removes the WKP (everyone knows the name of the WKP, which if messed with 		 can disrupt flow of processes; WKP is security concern)
-	* 4) Client receives server’s message, removes its private FIFO
-	* 5) Client sends response to server
-* C) Operation
-	* 1) Server and client send info back and forth
-* D) Reset
-  * 1) Client exits, server closes any connections to the client
-  * 2) Server recreates the WKP and waits for another client
-
-Note that shared memory size is limited and what data we can put into shared memory is also limited; a pipe is more ideal for this kind of pattern
+### *Operation*
+1. Server removes WKP and closes any connections to client.
+2. Server recreates WKP and waits for a new connection.
+3. **Subserver** and **client** send information back and forth.
 
 ---
+# 12.11.17 - Creating a handshake agreement
+**Do Now:**
 
-## Thursday, 12/07 What's A Semaphore? To Control Resources! 
+Consider a program that uses pipes in order to communicate between 2 separate executeable files.  
+One file is a "server" that is always running. The other is a "client".  
+Design a process by which both files can connect to each other and verify that each can send and receive data. Try to keep it as simple as possible.  
+1. *client sends pre-arranged*
+2. *server checks response*
+3. *serve sends pre-arranged*
+4. *client checks response*
+5. *client sends a message back for server to confirm sending capabilities*
 
-### More Semaphore Methods!
+### Handshake
+Procedure to ensure that a connection has been established between 2 programs.  
+Both ends of the connection must verify that they can send and receive data to and from each other.
 
-#### semctl
-* function description on website under [Work 14](http://www.stuycs.org/courses/mks65/dw/work/work14getsemcontrol)
-* `<DATA>` argument
-    * variable for setting/storing semaphore metadata
-    * type union semun
-        * you have to declare this union in your main c file on linux machines
-        * union: structure designed to hold only one value at a time from a group of potential values
-			* unlike a struct in which all values are held at the same time
-			* i.e. (for the homework assignment due today) it only holds the int value
+#### 3 Way Handshake
+1. client sends message to the server
+2. server sends a response to the client
+3. client sends a response back to the server
 
-#### union semun
-```C
+### Basic Server/Client Design Pattern
+#### 1: Setup
+1. Server creates a "Well Known Pipe" FIFO (named pipe) and waits for a connection.
+2. Client creates a "private" FIFO.
+#### 2: Handshake
+1. Client connects to server and sends the private FIFO name. Client waits for a response from the server.
+2. Server receives client's message and removes the Well Known Pipe.
+3. Server connects to client FIFO , sending an initial acknowledgement message.
+4. Client receives server's message, removes its private FIFO.
+5. Client sends response to server.
+#### 3: Operation
+Server and client send information back and forth.
+#### 4: Reset
+1. Client exits, server closes any connections to the client.
+2. Server recreates the WKP waits for another client.
+
+---
+# 12.7.17 - What's a semaphore? To control resources!
+
+### `semctl`
+`union semun` must be declared in the main c file on linux machines
+```c
 union semun {
-    int val;
-    struct semid_ds *bug;
-    unsigned short *array;
+    int val; // for SETVAL
+    struct semid_ds *buf; // for IPC_STAT and IPC_SET
+    unsigned short *array; // SETALL
     struct seminfo *__buf;
 };
 ```
+#### union?
+A c structure designed to hold only **one** value at a time from a group of potential values. 
+```c
+union semun su;
+su.val = 12;
+```
 
-#### semop
-* perform an atomic semaphore operation
-* you can up/down a semaphore by any integer value, not just 1
-* `semop( <DESCRIPTOR>, <OPERATION>, <AMOUNT>)`
-* `<DESCRIPTOR>`: what's returned from semget
-* `<AMOUNT>`: the amount of semaphores you want to operate on in the semaphore set
-* `<OPERATION>`: a pointer to a struct sembuf
+### `semop`
+Perform an atomic semahore operation.  
+You can Up/Down a semaphore by any integer value, not just 1.
 
+`semop (<DESCRIPTOR>, <OPERATION>, <AMOUNT>)`
+- **AMOUNT** amount of semaphores you want to operate on in the semaphore set
+- **OPERATION** a pointer to a `struct sembuf`
 
-#### struct sembuf
-```C
+```c
 struct sembuf {
     short sem_op;
     short sem_num;
     short sem_flag;
+};
+```
+- `sem_num` index of semaphore you want to work on
+- `sem_op` 
+    - Down(S): any negative number
+    - Up(S): any positive number
+    - 0: block until the semaphore reaches 0
+- `sem_flag`
+    - SEM_UNDO: allow the OS to undo the given operation; useful in the event that a program exits before it can release a semaphore (basically always include this)
+    - IPC_NOWAIT: instead of waiting for the semaphore to be available, return an error
+
+---
+# 12.5.17 - How do we flag down a resource?
+**Do Now:** How would you control access to a shared resource like a file, pipe, or shared memory, such that you could ensure no read/write conflicts occurred?  
+
+### semaphores
+(created by Edsger Dijkstra)  
+
+IPC construct used to control access to a shared resource (like a file or shared memory).  
+Most commonly, a semaphore is used as a counter representing how many processes can access a resource at a given time.
+- If a semaphore has a value of 3, then it can have 3 active "users".  
+- If a semaphore has a value of 0, then it is unavailable.
+
+Most semaphore operations are "atomic", meaning they will not be split up into multiple processor instructions.
+
+## semaphore operations
+
+### non-atomic  
+- create a semaphore
+- set an initial value
+- remove a semaphore
+
+### atomic
+`Up(S)` / `V(S)`
+- release the semaphore to signal you are done with its associated resource
+- psuedocode: `s++`
+
+`Down(S)` / `P(S)`
+- attempt to take the semaphore 
+- if the semaphore is 0, wait for it to be available
+- psuedocode: `while(S == 0) {block} S--;`
+
+## semaphores in C
+`<sys/types.h>`, `<sys/ipc.h>`, `<sys/sem.h>`
+
+### `semget`
+Create/get access to a semaphore.  
+This is not the same as `Up(S)` or `Down(S)`; it does not modify the semaphore.  
+Returns a semaphore descriptor or -1 (errno).
+
+`semget (<KEY>, <AMOUNT>, <FLAGS>)`
+- **KEY:** unique semaphore identifier (use `ftok`)
+- **AMOUNT:** amount of semaphores (stored as sets of one or more)
+- **FLAGS:** includes permissions for the semaphore (like shared memory)
+  - `IPC_CREAT` create the semaphore and set value to 0
+  - `IPC_EXCL` fail if the semaphore already exists and `IPC_CREAT` is on
+
+---
+# 12.4.17 - Memes
+**Do Now:** Why is the aim Memes?  
+*Memes are like memory shared between people.*
+
+Generally, `shmat` after the fork so that pid numbers don't get wonky.
+
+Onto continuing shared memory operations!!
+
+### 4: `shmdt` (shared memory detach)
+Detach a variable from a shared memory segment.  
+Returns 0 upon success or -1 upon failure.
+
+`shmdt (pointer)`
+- **pointer:** the address used to access the segment (will NOT be changed)  
+
+### 5: `shmctl` (shared memory control)
+Perform operations on the shared memory segment.  
+Each shared memory segment has metadata that can be stored in a struct (`struct shmid_ds`).  
+Some of that data stored: last access, size, pid of creator, pid of last modification. 
+
+`shmctl (descriptor, command, buffer)`
+- **descriptor:** return value of `shmget`
+- **commands:** 
+  - `IPC_RMID` removes a shared memory segment
+  - `IPC_STAT` populate the **buffer** (`struct shmid_ds *`) with segment metadata
+  - `IPC_SET` set some of the segment metadata from **buffer**
+  
+### `ipcs` (ipc stat)
+Terminal command hat lists the current shared memory segments. 
+
+---
+# 12.1.17 - Sharing is caring!
+**Do Now:** Writing a c program with a variable, fork, adjust the value in the child, and print it out in both parent and child.
+```c
+int f;
+double var = 5.83;
+f = fork();
+if(!f){
+    var *= 10;
+    printf("[child]: %d\n", var);
+}
+else{
+    int status;
+    wait(&status);
+    printf("[parent]: %d\n", var);
+}
+```
+Parent | Child
+--- | ---
+5.83 | 58.3
+
+## Shared Memory - `<sys/shm.h>`, `<sys/ipc.h>`, `<sys/types.h>`
+- a segment of heap memory that can be accessed by multiple processes
+- shared memory is accessed via a key that is known by any process that needs to access it
+- does not get released when a program exits (only when rebooting)
+
+### 5 Shared Memory Operations:
+1. Create the segment (happens only *once*)
+2. Access the segment (happens once per process)
+3. Attach the segment to a variable (once per process)
+4. Detach the segment from a variable (once per process)
+5. Remove the segment (only once)
+
+### 1 & 2: `shmget`
+Create or access a shared memory segment.  
+Returns a shared memory descriptor (similar in concept to a file descriptor), or -1 if it fails (errno).
+
+`shmget(key, size, flags)`
+- **key:** unique integer identifier for the shared memory segment (like a file name)
+- **size:** how much memory to request
+- **flags:** includes permissions (same as for files, 3-digit octals) for the segment, combined with bitwise or
+    - `IPC_CREAT` create the segment; if segment is new, will set value to all 0s
+    - `IPC_EXCL` fail if the segment already exists and `IPC_CREAT` is on
+    
+### 3: `shmat`
+Attach a shared memory segment to a variable.  
+Returns a pointer to the segment, or -1 (errno).
+
+`shmat(descriptor, address, flags)`
+- **descriptor:** return value of `shmget`
+- **address:** if 0, the OS will provide the appropriate address
+- **flags:** usually 0, but one useful one
+    - `SHM_RDONLY` makes the memory read only
+
+**Modifying the Do Now:**
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
+
+#define KEY 24601
+
+int main () {
+    int f;
+    int sd = shmget(KEY, sizeof(double), 0600 | IPC_CREAT);
+
+    f = fork();
+    if (!f) {
+        double *p = shmat(sd, 0, 0);
+        *p = 198746.9;
+        printf("[child]: %d\n", *p);
+    }
+    else {
+        int status;
+        
+        double *p;
+        *p = shmat(sd, 0, 0);
+        
+        wait(&status);
+        printf("[parent]: %d\n", *p);
+    }
 }
 ```
 
-* sem_num: index of semaphor you want to work on
-* sem_op:
-    * down(s): any negative number
-    * up(s): any positive number
-    * 0: block until semaphore reaches 0
-* sem_flag:
-    * SEM_UNDO: allow the OS to undo the given operation. userful in the event that a program exits before it could release a semaphore (basically you should always include this)
-    * IPC_NOWAIT: instead of waiting for the seamphore to be available, return to err
-
-
 ---
+# 11.28.17 - C, the ultimate hipster, using # decades before it was cool.
 
-## Tuesday, 12/05 Semaphores 
-
-### Semaphores
-* IPC construct used to control access to a shared resource (like a file, shared memory, etc.)
-* Commonly used as counter representing how many processes can access at a time
-* Counter of 0 means unavailable
-* Operations are atomic, meaning it **WILL NOT** split into multiple processor instructions
-
-### Semaphore operations
-The following operations are non-atomic:
-* Create a semaphore
-* Setting init value
-* Remove a semaphore
-
-The initial value of a semaphore is 0
-
-Up(s) / V(s)
-* Atomic
-* Release the semaphore to signal you are done with the resource
-
-Down(s) / P(s)
-* Atomic
-* Attempt to take the semaphore
-* If semaphore is 0, will **wait till available**
-
-### Semaphores in C
-Need:
-* <sys/types.h>
-* <sys/ipc.h>
-* <sys/sem.h>
-
-`semget`
-* Create or get access to semaphore
-* Does not modify semaphore
-* Returnes semaphore descriptor or -1 if error
-
-semget(KEY, AMOUNT, FLAG)
-* KEY: Unique semaphore identifier
-* AMOUNT: How many semaphores
-* FLAGS: INcludes permissions, combine bitwise
-
-## Monday, 12/04 Memes 
-
-### shmdt
-* Detach a variable from a shared memory segment
-* Returns 0 upon succes or -1 upon failure
-
-```C
-shmdt (pointer)
-```
-* The `pointer` is the address used to access the segment
-
-### shmctl
-* Performs operations on the shared memory segment
-
-* Each shared memory segment has metadata that can be stored in a struct (struct shmid_ds)
-
-* Some of the data stored includes the last access, the size, the PID of the creator, or the PID of the last modification
-
-```C
-shmctl (descriptor, command, buffer)
-```
-
-* The descriptor returns the value of shmget
-* The commands:
-
-`IPC-RMID`: Removes a shared memory segment
-
-`IPC-STAT`: Populates the buffer (struct shmid_ds*) with segment metadata
-
-`IPC-SET`: Sets some of the segment metadata from the buffer.
-
----
-
-## Friday, 12/01: Sharing is Caring 
-
-
-### What is shared memory?
-Shared memory is a segment of memory that can be access by any process using a key. This memory is not freed when all processes exit.
-
-### What can you do with shared memory?
-You can do five different operations using shared memory using <sys/shm.h>, <sys/ipc.h>,and  <sys/types.h>:
-* create the segment (happens once)
-* access the segment (happens once per process)
-* attach segment to a variable (once per process)
-* detach the segment from the variable (once per process)
-* remove the segment (happens once)
-
-#### shmget
-* usage: shmget(key, size, flags)
-* create or access a shared memory segment
-* returns shared memory descriptor or -1 if fails
-* key is unique int id for segment
-* size is amount of memory to request
-* flags is permissions for the segment
-    * IPC_CREAT: creates the segment
-        * if segment is new, sets all values to 0
-    * IPC_EXCL: fail if segment already exists and IPC_CREAT is on
-
-#### shmat
-* usage: shmat(descriptor, address, flags)
-* attach a segment to a variable
-* returns pointer to segment or -1 if fails
-* descriptor is just return value from shmget
-* address is 0 (can mess up easily if you use anything else)
-* flags are permissions:
-    * usually it's 0
-    * SHM_RDONLY: makes it all read-only
-
----
-
-# 11.28.17 - C, the ultimate hipster, using # decades before it was cool 
 ### \#
 Used to provide preprocessor instructions.  
 These directives are handled by gcc first.
@@ -468,7 +562,7 @@ Useful when using header files and there are multiple functions with the same na
 <CODE>
 #endif
 ```
-If the identifier has been defined, ignore all the code up until the endif statement.
+If the identifier has been defined, ignore all the code up until the endif statement. 
 
 For example:
 ```c
@@ -478,1312 +572,1029 @@ int count_tokens ...
 ...
 #endif
 ```
+
 ---
-
-## Monday, 11/27: Redirection, how does it... SQUIRREL by Jeremy Sharapov
-
-**Interesting Tech News:** [Bitcoin Approches $10,000](https://www.theguardian.com/technology/2017/nov/27/bitcoin-nears-10000-dollar-mark-as-hedge-funds-plough-in)
+# 11.27.17 - Redirection; how does it... SQUIRREL
 
 ### File Redirection
+- Changing the usual input/output behavior of a program.
 
-* Changing the usual input/output behavior of a program
+### Command line redirection:
+**`>`** redirects stdout to a file (creates a new file if the file doesn't exist)
+- overwrites the contents of the file
+- `<COMMAND> > <FILE>` i.e. `ls > file_list`
 
-### Command Line Redirection
+**`>>`** redirects stdout to a file by appending
 
-* `>` - Redirects stdout to a file
-	* Overwrites the contents of the file
-	* `<COMMAND> > <FILE>`
-	* Ex.
-		```
-		ps > ps_file
-		cat ps_file
-		```
-		Now ps is in ps_file
-	* Ex2. `ls > file_list`
-	* `cat` - Take this and send it to stdout
-		* "cat" without the filename prints stdin to stdout
-			* When you type something and hit enter, the next line will "echo" what you just typed
-		* Reminder that ctrl-d ends the file and closes the connection
-		* `cat > new_file` creates a crappy text editor where you can't make mistakes
-			* `cat new_file > newer_file`
-				* Copies contents of new_file to newer_file (basically cp)
-* `>>` - Redirects stdout to a file by appending
-* `2>` - Redirects stderr to a file
-	* Overwrites the file like `>`
-		* Use `2>>` to append
-* `&>` - Redirects both stdout and stderr to a file by overwriting
-	* `&>>` appends
-* `<` - Redirects stdin from a file
-* `|` (Pipe)
-	* Redirects stdout from one command to stdin of the next
-	* Ex. `ls | wc`
-		* Returns the word count of ls
-* `bash < commands.txt` - runs all commands in the file using bash
-	* Use this to test your shell
-		* Don't worry about the random prompts (bash handles these automatically)
+**`2>`** redirects stderr to a file
+- overwrites the file (2>> appends)
 
-### Redirection in C Programs
+**`&>`** redirect stdout and stderr (&>> appends)
 
-* `dup` - <unistd.h>
-	* `dup(fd)`
-	* Duplicates an existing entry in the file table
-	* Returns a new file descriptor for the duplicated entry
-* `dup2` - <unistd.h> (very original naming here)
-	* `dup2(fd1, fd2)` - Redirects fd2 to fd1
-	* Ex. `dup2(3, 1)` - Replaces stdout with "foo.txt" (that we created earlier)
-	* Duplicates the behavior for fd1 at fd2
-	* You will lose any reference to the original fd2; that file will be closed
-	* Any print always goes into the file directory of 1, regardless of whether or not it points to stdout
-	* Remember that `fork()` gives the child the parent's file table
-	* Ex2. (Use this in your project)
-		```c
-		int x = dup(1);
-		dup2(3, 1); //assume the fd of 3 is a file we created to log stuff
-		//do stuff here
-		dup2(x, 1);
-		close(x);
-		```
----
+**`<`** redirects stdin from a file
+- the file goes into the command
 
-## Tuesday, 11/21: A pipe by any other name... by Helen Ye
+**`|` (pipe)** redirect stdout from one command to stdin of the next
+- `ls | wc`
 
-**Interesting Tech News:** [Android phones 'betray' user location to Google](http://www.bbc.com/news/technology-42079858)
+`$ ps > ps_file` writes whatever ps gives into a file; a good way to write logs  
+`$ cat` with no file name opens stdin, and prints it to stdout  
 
-### Named Pipe
+`$ cat > new_file` the worlds simplest, and most useless text editor
+- control-d to send the end of file character, and close
 
-Also known as FIFOs.
+`$ cat new_file > newer_file` takes new_file and send it to newer_file
 
-Same as unnamed pipes except FIFOs have a name that can be used to identify
-them via different programs.
+| # | std |  
+| --- | --- |  
+| 0 | stdin |  
+| 1 | stdout |  
+| 2 | stderr |
 
-Like named pipes, FIFOS are unidirectional.
+### Redirection in c programs
+**dup - `<unistd.h>`**  
+- duplicates an existing entry in the file table
+- returns a new file descriptor for the duplicate entry
+- `dup(fd)` returns the new file descriptor
 
-#### `mkfifo`
+**dup2 - `<unistd.h>`**
+- `dup2(fd1, fd2)` redirects fd2 to fd1
+- duplicates the behavior for fd1 at fd2
+- you will lose any reference to the original fd2; that file wll be closed
 
-Shell command to make a FIFO.
+`dup2(3, 1)` this gets rid of stdout  
 
-```
-$ mkfifo <NAME>
-```
-
-#### `mkfifo - <sys/types.h> <sys/stat.h>`
-
-c function to create a FIFO
-
-Returns 0 on success, and -1 on failure.
-
-Once created, the FIFO acts like a regular file, and we can use open, read,
-write, and close on it.
+| # | std |  
+| --- | --- |  
+| 0 | stdin |  
+| 1 | foo.txt |  
+| 2 | stderr |  
+| 3 | foo.txt |   
+| 4 | bar.txt |  
 
 ```c
-mkfifo( <name>, <permissions>)
+int x = dup(1); // makes 5
+dup2(3, 1) // modifies 1 to foo.txt
 ```
+| # | std |  
+| --- | --- |  
+| 0 | stdin |  
+| 1 | foo.txt |  
+| 2 | stderr |  
+| 3 | foo.txt |  
+| 4 | bar.txt |  
+| 5 | stdout |  
 
-FIFOs will block on open until both ends of the pipe have a connection.
-
-#### Some BAD Behavior using Named Pipes
-
-* Two write ends, one read end open
-    * Read will display information sent by both writing ends.
-      The pipe will stay open if one of the writes is closed.
-* Two read ends, one write
-    * Information will be read by either pipe, in no particular order.
-      Closing the write end will close the pipe.
-* Deleting the pipe file while it is open
-    * The pipe can still be used as it exists in memory and deleting the file
-      in storage will not affect this.
+`dup2(x, 1)` puts stdout back into 1
 
 ---
+# 11.21.17 - A pipe by any other name...
 
-## Friday, 11/17: Ceci n'est pas une pipe by James Ko
+### named pipes 
+- also known as FIFOS (first-in, first-out)
+- same as unnamed pipes except FIFOs have a name that can be used to identify them via different programs
+- Like unnamed pipes, FIFOs are unidirectional
 
-**Interesting Tech News:** [SpaceX's mysterious Zuma launch is postponed indefinitely](https://www.theverge.com/2017/11/15/16649440/spacex-falcon-9-launch-zuma-mission-us-government-live-stream)
+### `mkfifo`
+- shell command to make a FIFO
+- `$ mkfifo <pipe name>`
 
-### Pipes
+Pipes show up as 0 bytes (`ls -l`) because they do not take up any disk space (only memory).
 
-- A pipe is a conduit between two processes on the same computer.
-- Pipes have two ends: a *read end* and a *write end*.
-  - There is a very strong similarity between them and files; they are also interacted with via the `read`/`write` functions.
-- Pipes are unidirectional: one may be only read from or written to in a given process.
-- There are two kinds of pipes: *unnamed pipes* and *named pipes*. Unnamed pipes have no external identifier; named pipes do.
+You can write into the same pipe from different processes, which may lead to conflicts. the pipe will not close until all connected processes have closed.  
+If you read a pipe from two different processes, weird things happen (you may get alternating messages); this does not return an error and both processes will just continue running, so **don't do it**.  
+If you delete a pipe while it's in use, it will still be in use (it becomes an unnamed pipe)
 
-- `pipe( int descriptors[2] )` - `unistd.h`
-  - Creates an unnamed pipe
-  - Returns 0 if the pipe was created, -1 if it was unsuccessful.
-  - Opens both ends of the pipe as files
-    - There is an entry in the file table for both ends
-  - `descriptors`: buffer that the pipe stores the descriptors in.
-  - `pipe` is typically used in conjunction with `fork` so that the child process knows the descriptors, even though it's not the process that called `pipe`. (important: `pipe()` call must come before `fork()`)
-  - When a pipe is initially created, both ends are open for reading and writing.
 
-### Examples
+### mkfifo - `<sys/types.h> <sys/stat.h>`
+- `mkfifo(<name>, <permissions>)`
+- c function to create a FIFO
+- reutrns 0 on success and -1 on failure
+- once created, the FIFO acts like a regular file, and we can use open, read, write and close on it
+- FIFOs will block on open (not read) until both ends of the pipe have a connection
+
+### other things - the 2nd marking period project???
+- putting together a shell
+- you can put multiple commands on the same line in bash with a semicolon
+- i.e. `$ echo HELLO ; ls`
+- 2 commands you can't run by exec --> `cd` and `exit`
+
+main  
+|  
+|----> exec  
+|  
+v  
+continues running
+
+---
+# 11.17.17 - Ceci n'est pas une pipe
+
+### pipe  
+- a conduit between 2 separate processes on the same computer
+- pipes have 2 ends; a read from end and a write to end
+- unidirectional (a single pipe must be either read or write only in a process); they only go one way
+- act just like files; open, close, read, write - same functions are used, and they go into the file table as well
+- you can transfer any data you like through a pipe using read/write
+- unnamed pipes have no external identifier (woah!!!) 
+
+### pipe - `<unistd.h>`
+- create an unnamed pipe
+- returns 0 if the pipe was created, -1 if not
+- opens both ends of the pipe as files (will show in the file table)
+
+`pipe(int descriptors[2])`  
+- descriptors: array that will contain the descriptors for each end of the pipe
 
 ```c
-int fds[2];
-pipe(fds);
-
-if (fork() == 0) {
-  // Child process
-  close(fds[READ]);
-  char s[10] = "helli!";
-  write(fds[WRITE], s, sizeof(s));
-} else {
-  // Parent process
-  close(fds[WRITE]);
-  char s[10];
-  read(fds[READ], s, sizeof(s));
-  printf("parent received: [%s]\n", s);
+int main(){
+    int fds[2];
+    pipe(fds); // creates a pipe
+    
+    int f;
+    f = fork(); // now both parent and child have an array
+    
+    // if child
+    if(!f){
+        close(fds[READ]); // for child to write to the parent 
+        char s[10] = "hello!";
+        sleep(2); // parent will wait for the child to run, even without using wait
+        write(fds[WRITE], s, sizeof(s));
+    }
+    //if parent
+    else{
+        close(fds[WRITE]);
+        char s[10];
+        read(fds[READ], s, sizeof(s)); // read will block until there is something to read in the pipe
+        printf("parent received: [%s]\n", s);
+    }
+    
+    return 0;
 }
 ```
 
 ---
+# 11.15.17 - Playing Favorites
+```c
+void print_bytes(void *p, int size){
+    int i = 0;
+    unsigned char *cp = (unsigned char *)p;
+    for(; i < size; i++){
+        printf("byte %u: %d\n", i, *cp);
+        cp++;
+    }
+}
+int main(){
+    int x = 302;
+    print_bytes(&x, sizeof(x));
+}
+```
+generally we think of ints as a single place in memory that stores an int, but ints actually have 4 bytes, so if you declare `int x = 32`, that sets x to [ 0 | 0 | 0 | 32 ]
 
-## Wednesday, 11/15: Playing Favorites by Herman Lin
+actually, Mr. DW lied, and that is not always the case. 
+- i.e. 302 is [ 46 | 1 | 0 | 0 ]  
+- or at least that's how it works on his computer 
 
-**Interesting Tech News:** [New Closest Temperate Exoplanet](http://www.eso.org/public/news/eso1736/)
+**endian-ness** of a number:
+- big-endian - most significant digits first
+- little-endian - least significant digits first
 
-### endianness
-* the way the bytes of a number can be referred to its endianness
-* categorized into 'big-endian' and 'little-endian'
-* big-endian: most significant bytes are at the end
+46 | 1 | 0 | 0
+--- | --- | --- | ---
+00101110 | 00000001 | 00000000 | 00000000
 
+**`WEXITSTATUS(status)`** a macro where things are replaced; hence the CAPs
+- looks at the bytes of status
+- returns the process has returned when it exited
 
-	int i = 302; //in big-endian, bytes are represented as[0|0|1|46]
-
-* little-endian: least significant bytes are at the end
-
-
-	int i = 302; //in little-endian, bytes are represented as [46|1|0|0]
-
-### waitpid - <unistd.h>
-* waits for a specific child
-
-
-	waitpid (pid, status, options)
-
-* pid - give the PID of the specific child to look for, or -1 to wait for any child
-* options - give options that can set other behaviors for wait, or 0 to work normally
+### wait - `<unistd.h>`
+- waits for a specific child  
+`waitpid(pid, status, options)` 
+- **pid:** the pid of the specific child to look for; if -1, will wait for any child
+- **options:** can set other behavior for wait; if 0, will work normally
 
 ---
-
-## Tuesday, 11/14 Wait For It... By Jackie Xu
-
-**Interesting Tech News:** [FDA Approved First Digital Pill](https://www.theverge.com/2017/11/14/16648166/fda-digital-pill-abilify-otsuka-proteus)
-
-### fork() and getppid() continued
-* calling fork twice results in 4 child processes
-* return value of fork() to the parent is child process's ID or -1 if errno
-* return value of fork() to the child is 0
-* return value of getppid() for the parent is the BASH session
-* return value of getppid() for the child is 1 once the parent process ends
-* parent and child processes run concurrently, but if you can call sleep(1) to one process to change the order
-
-#### example
+# 11.14.17 - Wait for it
 ```c
-int main() {
+int f -2;
+f = fork();
+if(f){
+    sleep(1);
+}
+fork();
+printf("post-fork I'm %d\tf: %d\tparent: %d\n", getpid(), f, getppid());
+```
+**orphan processes:** If a parent process has ended, `getppid()` returns 1.
 
-    pid_t  pid;
+While a child process is a normal executeable process with its own memory space, a thread is code that runs on its own but shares its memory with another process (only running as long as the parent is running). 
 
-	pid = fork();
+### wait - `<unistd.h>`
+Stops a parent process from running until any child has provided status information to the parent via a signal.  
+Usually the child has exited.
+
+Returns the pid of the child that exited, or -1 (errno).
+
+`wait(int *status)`
+- the parameter (status) is used to store information about how the process exited 
+
+---
+# 11.13.17 - What the fork?
+Some things about HW: don't be stupid and read the instructions :(  
+
+## **Managing Sub-Processes**
+
+### fork() - `<unistd.h>`  
+Creates a separate process based on the current one.  
+The new process is called a child, the original is the parent.
+
+The child process is a duplicate of the parent process.  
+All parts of the parent process are copied, including stack and heap memory, and the file table.
+
+Returns 0 to the child and the child's pid to the parent or -1 (errno).
+
+```c
+printf("pre-fork\n");
+printf("pid: %d\n", getpid());
+
+fork();
+
+printf("post-fork\n");
+printf("pid: %d\n", getpid());
+```
+This prints post-fork twice, because the child process will copy the parent process at the point of the fork, thus running the same code.
+
+There is no guarantee to the order of the processes after forking.
+
+_**DO NOT USE FORK BOMBS:**_  
+```
+while(1){
     fork();
-
-	printf("pid: %d\t f: %d\t  parent: %d\n", getpid(), pid, getppid());
-    return 0;
-
 }
 ```
-#### output (without sleep)
-```
-pid: 35157	 f: 0	  parent: 35156
-pid: 35159	 f: 0	  parent: 1
-pid: 35158	 f: 35157	  parent: 35156
-pid: 35156	 f: 35157	  parent: 34152
-```
-
-#### example
-```c
-int main() {
-
-    pid_t  pid;
-
-	pid = fork();
-    fork();
-
-    if (pid != 0) {
-        sleep(1);
-    }
-
-	printf("pid: %d\t f: %d\t  parent: %d\n", getpid(), pid, getppid());
-    return 0;
-
-}
-```
-#### output (with sleep)
-```
-pid: 35179	 f: 0	  parent: 35178
-pid: 35181	 f: 0	  parent: 35179
-pid: 35180	 f: 35179	  parent: 35178
-pid: 35178	 f: 35179	  parent: 34152
-```
-
-### wait() - <unistd.h>
-* stops a parent process from running until any child has provided status info to the parent via a signal (usually the child has exited)
-* returns the pid of the child that exited or -1 (errno)
-* wait (int * status)
-    * the parameter (status is used to store info about how the process exited)
-* if multiple children, then the first child that exits will trigger wait
-
-### threads
-* similar to processes, but more complicated to interact with
-* shared memory pool
-* started from some other process, but other one must still be running in order for thread to exist
 
 ---
+# 11.9.17 - Time to make an executive decision
+**Do Now:** `execlp` --> `int execlp(char *file, char *arg, .../*. (char *) NULL */)`
 
-## Monday 13/11 What the Fork? By Haiyao Liu
+## the exec family - `<unistd.h>`
+There are a number of c functions that can be used to run other programs from within.  
+Replaces the current process with the new program.
 
-**COOL and GOOD tech news:** [DeepMind's AlphaGo Zero 18 Oct 2017 - nonsupervised AI masters Go tabula rasa](https://deepmind.com/documents/119/agz_unformatted_nature.pdf)
+### `execlp(char *file, char *arg0, ..., (char *)NULL)`
+- file should be the same as arg[0], so you basically put in the command twice
+- since there can be an arbitrary number of arguments you must end with NULL
+- i.e. `execlp("ls", "ls", "-l", NULL);`
 
-In today's class we learned:
-* *homework directions are to be read and followed*
-* *strsep() can be used to create an array of strings (char\*\*) in-place*
-* *fork() creates a duplicate process (child) when called within an existing process (parent)*
-
-### strsep() <string.h>
-`strsep( <POINTER TO STRING> , <DELIMINATOR STRING> )`
-* finds the first occurence of any character within the deliminator string or the terminating null and replaces it with a terminating null.
-* changes the provided string pointer to the address of the character directly following the replaced character - or NULL if the end of the string has been reached.
-* returns the original string pointer.
-
-#### example
+### `execvp`
+- an easier version of execlp so you don't have to individually put in each arg; instead you just pass an array of strings
 ```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+char *args[5];
+args[0] = "ls";
+args[1] = "-a";
+args[2] = NULL;
 
-int main() {
-
-    char *str;
-    char *tmp;
-
-    strcpy(str, "these are words,\tnot whitespace");
-    printf("original:\t%s\nparts:\n", str);
-
-    while ((tmp = strsep(&str, " \t"))) { // note 1-2
-      printf("> %s\n", tmp);
-    }
-
-    return 0;
-
-}
+execvp(args[0], args);
 ```
-#### output
-```
-original:	these are words,	not whitespace
-parts:
-> these
-> are
-> words,
-> not
-> whitespace
-```
-
-### fork() <unistd.h>
-* Creates a copy, or child process, of the current process, the parent.
-* The stack memory, heap memory, and file table of the child process upon creation are identical to the parent's at the point fork() is executed.
-* PID is changed as the child is a distinct process.
-
-#### example
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-int main() {
-
-    pid_t  pid;
-
-    printf("I'm going to be the PARENT!! My <PID> is: %d\n", getpid());
-
-    pid = fork(); //note 3
-
-    if (pid == 0) {
-        printf("I'm the CHILD and my <PID> is: %d\n", getpid());
-    }
-
-    else {
-        printf("I'm now the PARENT and my <PID> is still: %d\n", getpid());
-    }
-
-    return 0;
-}
-```
-#### output
-```
-I'm going to be the PARENT!! My <PID> is: 29090
-I'm now the PARENT and my <PID> is still: 29090
-I'm the CHILD and my <PID> is: 29091
-```
-Note that 29090 and 29091 are simply PID's and will differ.
-
-### notes
-1. strsep replaces ALL characters within the deliminator string, it isn't limited to one character.
-2. wrapping an assignment in parentheses will silence the "assignment in conditional" or "= vs ==" warning.
-3. concurrent process running prevents simply sending PID's to stdout (print order is unpredictable).
-4. avoid f-bombs!
+- **YOU MUST REMEMBER TO PUT A NULL AT THE END OF THE ARGS WITHIN THE ARRAY**
 
 ---
+# 11.8.17 - Sending mixed signals
 
-## Thursday, 11/09: Execlp and Execvp, by Joshua Turcotti
-**Interesting tech news**: [Setback for SpaceX as its next-gen rocket explodes during testing](https://www.digitaltrends.com/cool-tech/spacex-rocket-explodes-during-testing/)
+##### Self Explanatory functions
+`getpid()` returns the PID of the current process number  
+`sleep(<TIME>)` does this need to be explained??
 
-We learned about executing processes from within a C program.
+### Signals
+Limited way of sending information to a process.
 
-#### What happens when you execute a process from within a C program?
-Your original processes (a.out or however you named it) is replaced by a new one that you specificy.
+`kill`: command line utility to send a signal to a process
+- `$ kill <PID>` sends signal 15 (SIGTERM) to PID; a misnomer - does not always lead to a program quitting
+- `$ kill -<SIGNAL> <PID>` sends SIGNAL to PID
 
-#### How do you do this?
-`int execlp(const char *file, const char *arg, ...);` is a function that terminates the current process and spawns a new one. The name of this new one is sprovided by the frist arugment <file>, which is searched for in the path as if typed into a terminal. The remaining arugments, fed as a list, specificy the arguments (argv) passed to that new process, with argv[0] always set to the name of the process.
-`int execvp(const char *file, char *const argv[]);` is an alternative function in which the arguments are passed in a vector (array) as opposed to a list; it is often the more convenient notation.
-Both are found in `<unistd.h>`.
+`killall [-<SIGNAL>] <PROCESS>`
+- sends SIGTERM (or SIGNAL if provided) to all processes with PROCESS as the name
 
-#### Examples
-```c
-#include <unistd.h>
+basically; `kill` is for PID, `killall` is for name
 
-int main() {
-	execlp("ls", "ls", "-a", "/", NULL);
-}
+### Signal handling in c programs `<signal.h>`
 
-ALTERNATIVELY:
+**kill**  
+- `kill(<PID>, <SIGNAL>)` 
+- returns 0 on succes or -1 (errno) on failure
 
-int main() {
-	const char *args[8];
-	args[0] = "ls";
-	args[1] = "-a";
-	args[2] = "/";
-	args[3] = NULL;
+**signalhandler**  
+- to intercept signals in a c program you must create a signal handling function
+- some signals (i.e. SIGKILL) cannot be caught
+- `static void sighandler(int signo)`
+- must be static, must be void, must take a single int parameter
+- static: the function can only be called from within the file it is defined
 
-	execvp(args[0], args);
-}
+**signal**
+- after you create the function, you attach the signals to it using the signal function
+- `signal
 
-```
-Note that in the both cases, the args must be terminated by NULL.
-
-#### A Few Final Notes
-* the 'p' stand for path, because the $PATH is searched for the names of the executables
-* it could be replaces by 'e', and you could provide your own environment
-* it could be ommitted entirely, and you would have to specify an explicit path
-
----
-## Wednesday, 11/08: Sending Mixed Signals, by Aryan Bhatt
-**Interesting tech news**: [Apple is Reportedly Launching New iPad](https://www.theverge.com/circuitbreaker/2017/11/8/16624842/apple-2018-ipad-face-id-no-home-button-rumor)
-
-We learned about signals today.
-
-#### So what is a signal in the first place?
-A signal is a limited way to send information to a process.
-Each of the 32 signals is represented by an int from 1-32
-
-#### Sending signals from the terminal
-`$ kill -<signal_int> <PID>` is a command line utility that allows you to sends the signal with flag <signal_int> to the process with the given PID. If you don't include an argument for the flag of the signal you want to send, the command will send a SIGTERM signal by default.
-
-`$ killall [-<signal int>] <program_name>` sends the signal with flag <signal_int> to all programs with the name <program_name>
-
-#### Catching and Sending Signals from a C function
-`kill(PID, signal_int)` is the function form of the terminal kill command. Returns 0 when it's successful and -1 (errno) when it fails.
-To catch signals in your code, you write the sighandler function.
 ```c
 static void sighandler(int signo){
-    if (signo == 11) {
-        printf("SEGFAULT received\n");
-    }
-    if (signo == 7) {
-    	printf("oh no another signal!\n");
-    }
+  if(signo == SIGINT){
+    printf("");
+  }
+  if(signo == SIGSTOP){
+    printf("");
+  }
+}
+
+int main(){
+  signal(SIGINT,
 }
 ```
-The name of the function and the argument can be changed, but conventionally, sighandler and signo are used.
-However, the function must be static and void and have a single int argument.
-In your main function, you need to include a line to check for each signal you want to catch -
-`signal(SIGNUMBER, sighandler);`
-This attaches sighandler to the function in the file.
-The argument sighandler is the name of the function that you defined to catch signals.
-
-#### A Few Final Notes
-* use `$ fg` to bring a process to the foreground
-* static functions can only be used in the file in which they're written, and they're not stored in stack memory
-* getpid() returns the PID of the current process
-* remember to `#include <signal.h>` at the beginning of your code
-* some signals, like SIGKILL and SIGSTOP can't be caught
-* you can add in `exit(1)` in the sighandler function to force an exit
 
 ---
+# 11.6.17 - Are your processes running? Then you should go out and catch them!
 
-## Monday, 11/06: Are your processes running? Then you should go out and catch them! by Jan Kowalski
-**Actual tech news**: [Paradise Papers show Apple used tax havens](http://www.businessinsider.com/paradise-papers-apple-found-new-tax-haven-after-us-senate-tax-crackdown-2017-11)<br>
-**Interesting tech news**: [Star Citizen to release persistent universe](https://www.neowin.net/news/star-citizens-new-planet-sized-cities-unveiled-at-citizencon)<br>
-**Old tech news**: [Reflections on Trusting Trust](http://vxer.org/lib/pdf/Reflections%20on%20Trusting%20Trust.pdf)
+### fgets - `<stdio.h>`
+Read in from a file stream and store it in a string.  
+`fgets(<DESTINATION>, <BYTES>, <FILE POINTER>)`  
+`fgets(s, n, f)` reads at most `n-1` characters from file stream `f` and stores it in `s`  
 
-We completed the lesson on user input and began learning about processes.
+#### File pointer
+- File * type, more complex than a file descriptor
+- stdin is a FILE * variable; can be used with fgets
 
+Stops at newline, end of file, or the byte limit.  
+If applicable, keeps the newline character as part of the string, appends NULL after.  
+`fgets(s, 256, stdin)` reads a line of text from standard in
 
-## **Input**
-### **fgets()** - `<stdio.h>`
+```c 
+printf("enter data: ");
+fgets(s, sizeof(s), stdin);
 
-Read in from a file stream and store it in a string
-
-`fgets( <DESTINATION>, <BYTES>, <FILE POINTER>);`
-
-`fgets(s, n, f);`
-Reads at most n-1 characters from file stream f and stores it in s
-
-
-**File Pointer**
-- FILE * type, more complex than a file descriptor
-- stdin is a FILE * variable
-- fopen() returns a file pointer instead of a file descriptor, but does not handle sockets well (sockets not covered).
-- fgets() stops at newline, end of file, or the byte limit.
-- If applicable, keeps the newline character as part of the string, appends NULL after.
-
-`fgets(s, 256/sizeof(), stdin)`
-read a line of text from standard in
-
-fgets() meant to be used for strings, use open() for raw numerical data
-```C
-    char s[200];
-
-    printf("enter data: ");
-    fgets(s, sizeof(s), stdin);
+printf("s: %s", s);
 ```
 
+### sscanf - `<stdio.h>`  
+Scan a string and extract values based on a format string.  
+`sscanf(<SOURCE STRING>, <FORMAT STRING>, <VAR 1>, <VAR 2>...)`  
 
+## Processes
+Every running program is a process. A process can create subprocesses, but these are no different from regular processes.  
+A processor can handle 1 process per cycle (per core).  
+"Multitasking" appears to happen because the processor switches between all the active processes quickly.  
 
-### **sscanf** - `<stdio.h>`
-
-Scan a string and extract values based on a format string.
-
-`sscanf(<SOURCE STRING>, <FORMAT STRING>, <VAR 1>, <VAR 2>, ...);`
-
-```C
-    int i;
-    float f;
-    sscanf(s, "%d %f", &i, &f);
-```
-Returns the number of successful 'conversions' (i.e. the number of correct reads).
-
-
-## **Processes**
-Every running program is a process. A process can create subprocesses, but these are no different from regular processes.
-
-A processor can handle 1 process per cycle (per core)
-
-"Multitasking" appears to happen because the processor switches between all the active processes quickly
-
-**pid**
-- Every process has a unique identifier called the pid.
-- pid 1 is the init process
-- Every entry in the /proc directory is a current pid
-
-`$ ps`
-lists running processes
-(that you own, that are attached to terminal)
-
-`$ ps -a`
-lists running processes
-(that are attached to terminal)
-
-`$ ps -ax`
-lists all running processes
-
-
-
-### Useful Notes
-- scanf() can result in overflows if the number of bytes passed is larger than destination.
-- gets() [is insecure](http://man7.org/linux/man-pages/man3/gets.3.html#BUGS), don't use it.
-- tty represents a terminal session that a process is attached to.
+### pid 
+Every process has a unique identifier call the pid.  
+pid 1 is the init process (if you shut down pid 1, you shut down your computer).  
+Each entry in the /proc directory is a current pid.  
+`ps` shows all the processes running that YOU own and are attached to terminal session.  
+`ps -a` shows everything?  
+`ps -ax` processes that are not attached to a terminal session - actually shows everything
 
 ---
+# 11.3.17 - Input? fgets about it!
 
-## Friday, 11/03: Input? Fgets about it! by Yedoh Kang
-**Interesting tech news**: [Logitech is experimenting with a keyboard built for VR](https://techcrunch.com/2017/11/02/logitech-is-experimenting-with-a-keyboard-built-for-virtual-reality/)
+```c
+char * get_perm_string(mode_t mode){
+     mode_t perms[3];
+     int i;
+     char *perm_string = (char *)malloc(10);
+     perm_string[9] = 0;
 
-We started off class by going over the two previous homeworks, stat and dirinfo. Mr. DW then went over his solutions to the homeworks, and showed us different ways to print out the permissions in ls -l form, including bitwise operators such as bit shifting and &(and).
+     perms[0] = (mode & 0b111000000) >> 6;
+     perms[1] = (mode & 0b111000) >> 3;
+     perms[2] = (mode & 0b111);
 
-We then discussed different ways of getting input:
-
-**Command Line Argument**
-* `int main (int argc, char *argv[])`
-* program name is considered the first command line argument: `argv[0]`
-* argc: # of command line arguments
-* argv: array of command line arguments
-
-**scanf - <stdio.h>**
-* `scanf(<FORMAT STRING>, <VAR 1>, <VAR 2>, ...);`
-* reads in data from stdin using the format string to determine types
-* puts the data in each variable
-* variable must be a pointer
-* Example:
-  * Expects user to input in the variables in the EXACT format, including spaces
-	* If not followed, it might lead to incorrect answers and possibly, errors
+     for(i = 0; i < 3; i++){
+     	   if(perms[i] & 0b100) perm_string[0 + i*3] = '';
+     }
+}
 ```
- int x;
- float f;
- double d;
- scanf("%d %f %lf", &x, &f, &d);
+
+### Command Line Arguments
+- `int main(int argc, char *argv[])`
+- program name is considered the first command line argument
+- `argc`: the number of command line arguments
+- `argv`: array of actual arguments
+
+### scanf - `<stdio.h` (not really great, but ok)
+- `scanf(<FORMAT STRING>, <VAR 1>, <VAR 2> ...)`
+- reads in data from stdin using the format string to determine types and puts the dat ain eachv variable
+- variables must be pointers
+```c
+int x;
+float f;
+double d;
+scanf("%d %f %lf, &x, &f, &d);
 ```
 
 ---
+# 11.1.17 - Where do compsci priests keep their files? In directory!
 
-## Wednesday, 11/01: Where do doctors keep their files? by Shakil Rafi
-**Interesting tech news**: [Intel 8th generation processors are out with ~60% performance boost](http://www.trustedreviews.com/news/intel-8th-gen-cpus-release-date-specs-price-2952599)
+### Directories
+- A *nix directory is a file containing the names of the files within the directory along with basic information, like file type.
+- Moving files into/out of a directory means changing the directory file, not actually moving any data (with the exception of drives; i.e. a flash drive).
+- All linux box directories are the same size.
 
-We learned about interacting with directory files using `dirent.h` functions
+### opendir - `<dirent.h>`
+- Open a directory file (so that you can read it later).
+- This will not change the current working diretory (cwd), it only allows your program to read the contents of the directory file.
+- `opendir(<PATH>)`
+- Returns a pointer to a directory **stream** (DIR *).
+- You cannot create or write to a directory with opendir, only read.
 
-### What is a directory actually?
-* A directory is a list of filenames for all files that reside in the directory
-* It also holds some basic info about the file like filetype and size
-* Moving a file just moves the filename to another directory file (doesn't copy bytes)
-* Linux directories are 4096 bytes (or 4 kilobytes)
+### closedir - `<dirent.h>`
+- closes the directory stream and frees the pointer associated with it.
+- `closedir(<DIRECTORY STREAM *>)`
 
-### opendir - <dirent.h>
-* usage: `opendir(<path>)`
-* opens a directory file
-* does not change current working directory
-* does not create a directory
-* cannot write to directory (only read)
-* returns pointer to directory stream (`DIR*`)
-* directory streams pass info from given directory
-* does not require a call to `malloc()`
-    * also don't `free()` this
+### readdir - `<dirent.h>`
+- `readdir(<DIRECTORY STREAM *>)`
+- returns a pointer to the next entry in a directory stream, or NULL if all entries have already been returned.
 
-### closedir - <dirent.h>
-* usage: `closedir(<dir stream>)`
-* closes directory stream
+#### struct dirent - `<sys/types.h>`
+- directory struct that contains the information stored in a directory file.
+Some of the data members:
+- `d_name`: file name
+- `d_type`: file type as an int
 
-### readdir - <dirent.h>
-* usage: `readdir(<dir stream>)`
-* returns next file in dir as a `struct dirent` or `NULL` if nothing left
+For example:
+```c
+DIR * d;
+d = opendir("somedir");
 
-### struct dirent - <sys/types.h>
-* contains info about directory file
-* `d_name`: name of file
-* `d_type`: filetype as int
+struct dirent *entry;
+entry = readdir(d);
+
+closedir(d);
+```
+You do not have to worry about malloc and free (this is done with opendir and closedir).
+File names are limited to 256 characters. 
 
 ---
+# 10.30.17 - Seek and ye shall find
 
-## Monday, 10/30: Seek and ye shall find, by Ida Wang
-
-**Interesting tech news**: [YouTube tweaks advertising algorithm](http://www.bbc.com/news/technology-41801705) (again).
-
-We learned about `lseek` and `stat`.
-
-### lseek - `<unistd.h>`  
+### lseek - `<unistd.h>`
 - set the current position in an open file
-- returns the number of bytes the current position is from the beginning of the file, or -1 (errno).
+- `lseek(<FILE DESCRIPTOR>, <OFFSET>, <WHENCE>)`
 
-#### `lseek(<FILE DESCRIPTOR>, <OFFSET>, <WHENCE>)`  
-OFFSET: The number of bytes to move the position by (can be negative)  
-WHENCE: where to measure the offset from
+**OFFSET**: number of bytes to move the position by. Can be negative.
+
+**WHENCE**: where to measure the offset from
 - `SEEK_SET`: offset is evaluated from the beginning of the file
 - `SEEK_CUR`: offset is relative to the current position in the file
 - `SEEK_END`: offset is evaluated from the end of the file
 
-Application in our last assignment (dev-random): instead of closing the file and reopening to move from write to read, use `lseek` to set the position to the beginning of the file again.
+Returns the number of bytes the current position is from the beginning of the file, or -1 (errno).
+
+For the dev-random assignment, instead of closing and reopening to read, use lseek to set place to the beginning of the file again.
 
 ### stat - `<sys/stat.h>`
 - get information about a file (metadata)
 - `stat(<PATH>, <STAT BUFFER>)`
+- does not require a file descriptor (you can stat a file without opening it)
+
 ```c
 struct stat sb;
 stat("foo", &sb);
 ```
-PATH: file path (no file descriptor required because you can stat a file without opening it)
 
-STAT BUFFER: must be a pointer to a struct stat
+**STAT BUFFER**
+- Must be a pointer to a struct stat
 - All the file information gets put into the stat buffer.
-
 Some of the fields in struct stat:
 - `st_size`: file size in bytes
 - `st_uid, st_gid`: user ID, group ID
 - `st_mode`: file permissions
 - `st_atime, st_mtime`: last access, last modification
+    - these are time_t variables. We can use functions in time.h to make sense of them.
+    - `ctime(<TIME>)` returns time as a string (TIME is type time_t)
+    
+---
+# 10.26.17 - Read your writes!
+
+### umask - `<sys/stat.h>`
+- Set the file creation permission mask
+- By default, created files are not given the exact permissions provided in the mode argument to open. Some permissions are automatically shut off.
+Umask is applied in the following way:
+`new_permissions = ~mask & mode`
+The default mask is 0002.
+
+mode   = 666 -> 110 110 110  
+umask  = 022 -> 000 010 010  
+
+~umask =     -> 111 101 101  
+& mode =     -> 110 110 110  
+- - - - - - - - - - - - - -  
+       = 644 -> 110 100 100
+
+**`umask(<MASK>)`**
+- You can define the umask using a 3 digit octal.
+- `umask(0000);` allows everything
+
+### read - `<unistd.h>`
+- read in data from a file
+- `read(<FILE DESCRIPTOR>, <BUFFER>, <AMOUNT>)`; read AMOUNT bytes from file
+- `read(fd, buff, n)`
+- Read n bytes from the fd's file and put that data into buff
+- Returns the number of bytes actually read. Returns -1 and sets errno if unsuccessful.
+- BUFFER must be a pointer
+
+### write - `<unistd.h>`
+- write data to a file
+- `write(<FILE DESCRIPTOR>, <BUFFER>, <AMOUNT>)`
+- `write(fd, buff, n)`
+- Write n byes from buff into fd's file
 
 ---
+# 10.25.17 - Opening up a world of possibilities
 
-## Thursday, 10/26 Read your writes! by Henry Zheng
-**Tech News:** [Amazon Key is a new service that lets couriers unlock your front door](https://www.theverge.com/2017/10/25/16538834/amazon-key-in-home-delivery-unlock-door-prime-cloud-cam-smart-lock)
+### open - `<fcntl.h>`
+- Add a file to the file table and returns it file descriptor.
+- If open fails, -1 is returned, extra error information can be found in errno, an int variable that can be found in `<errno.h>`. Using strerror (in string.h) on errno will treturn a string description of the error.
+**`open(<PATH>, <FLAGS>, <MODE>)`**
+#### mode
+- Only used when creating a file. Set the new file's permissions using a 3 digit octal number.
 
-Today, we learned about umask and read/write file commands.
+#### flags
+- Determine what you plan to do with the file.
+Use the following constants:
+- O_RDONLY, O_WRONLY, O_ROWR, O_APPEND, O_TRUNC
+- O_CREAT: must be used if the file does not exist
+- O_EXCL: when combined with O_CREAT, will return an error if the file exists
 
-**umask - <sys/stat.h>**
-* Sets the file creation permission mask
-* By default, created files are not given the exact permissions provided in the mode argument to open. Some permissions are automatically shut off.
-* Umask is applied in the following way:
-	- new_permissions = ~mask & mode;
-* The default mask is 0002.
-* `umask( <MASK> );`
-	- You can define the umask using a 3 digit octal #
-	- `umask(0000);`
-
-**read - <unistd.h>**
-* Read in data from a file
-* `read( <FILE DESCRIPTOR>, <BUFFER>, <AMOUNT> );`
-* `read( fd, buff, n );`
-	- Read n bytes from the fd's file and put that data into buff
-* Returns the number of bytes actually read. Returns -1 and sets errno if unsuccessful
-* BUFFER must be a pointer
-
-**write - <unistd.h>**
-* Write data to a file
-* `write( <FILE DESCRIPTOR>, <BUFFER>, <AMOUNT> );`
-* `write( fd, buff, n );`
-	- Write n bytes from buff into fd's file
-* Returns the number of bytes actually written. Returns -1 and sets errno if unsuccessful
+Each flag is a number; to combine flags we use bitwise OR
+- O_WRONLY = 1           00000001
+- O_APPEND = 8           00001000
+- O_WRONLY | O_APPEND =  00001001
 
 ---
+# 10.24.17 - File this under useful information
 
-## Wednesday, 10/25 Opening up a world of possibilities by Sonal Parab
-**Tech News:** [High-tech Mirror for cancer patients only works if you smile](http://money.cnn.com/2017/10/24/technology/smile-mirror-cancer-patients/index.html)
+### file permissions
+- 3 types: read, write, execute
+Permissions can be represented as 3-digit binary or 1-digit octal numbers.
+- 100 <==> 4 => read only
+- 111 <==> 7 => read, write, execute
 
-We continued our discussion about files.  
+There are 3 permission "areas":
+- user, group, others (everyone else)
+- each area can have its own permissions
+- 0644 => user: read + write, group: read:, other: read
 
-**open**  
-`#include <fcntl.h>`  
-Adds a file to the file table and returns its file descriptor  
-If open fails, -1 is returned, extra error information can be found in errno.  
-* `errno` is an int variable that can be found in `<errno.h>`, using `strerror` (in `string.h`) or errno will return a string description of the error  
-```C
-open(<PATH>,<FLAGS>,<MODE>)
+Command: `ls -l` to show file permissions (plus some extra stuff)
+- `user-group-other` --> i.e. `-rwxr-xr-x`
+To change file permissions: `chmod`
+- i.e. `chmod -x <filename>`, `chmod 644 <filename>` (rw-r-r), `chmod 600 <filename>` (-rw-------)
+- 644 is probably the standard permissions given by the system
+
+### File table
+- A list of all the files being used by a program while it is running.
+- Contains basic information like the file's location and size.
+- The file table has a limited size, which is a power of 2 (commonly 256). `getdtablesize()` will return this value. This is a hard limit (256 files opened at the same time is a little much).
+- Each file is given an integer index, starting at 0. This is referred to as the file descriptor.
+
+There are 3 files always open in the table:
+- 0 or STDIN_FILENO: stdin
+- 1 or STDOUT_FILENO: stdout
+- 2 or STDERR_FILENO: stderr
+
+---
+# 10.23.17 - A bit of wisdom
+
+### base formatting characters
+- **%o**: octal integer
+- **%x**: hexadecimal integer
+
+You can define native integers in bases 2, 8 and 16 by using the following prefixes.
+- **0b**: binary
+- **0**: octal
+- **0x**: hexadecimal
+```c
+int b = 0b1011; // prints 11
+int o = 0122;   // prints 82
+int x = 0xa3;   // prints 163
+```
+THIS DOES NOT CHANGE THE VALUE  
+`0b1011 == 013 == 0xB == 11`
+
+## Bitwise Operators
+Evaluated on each individual bit of a value.
+
+### >> right shift
+- i.e. `x >> 1`
+- move all bits to the right, add 0s in the front
+```c
+unsigned char cb = 0b11001010; // prints 202
+cb = cb >> 1;                  // prints 101
+cb = cb >> 1;                  // prints 50
+cb = cb << 1;                  // prints 100
 ```
 
-mode  
-* Only used when creating a file. Set the file's permissions using a 3 digit octal #  
+### << left shift
+- i.e. `x << 2`
+- move all bits to the left, add 0s in the back
 
-flags  
-* Determine what you plan to do with the file.  
-* Use the following constants:  
-	- `0_RDONLY`: read only  
-	- `0_WRONLY`: write only  
-	- `0_RDWR`: read and write  
-	- `0_APPEND`: start at the end  
-	- `0_TRUNC`: start at the beginning (if combined with write would overwrite the file)  
-	- `0_CREAT`: creates the file, must be used if file does not exist, opens file if it exists  
-	- `0_EXCL`: must be combined with `0_CREAT`, will return an error if the file exists  
-* Each flag is a number, to combine flags we use bitwise OR
-    ```
-    O_WRONLY = 1            00000001
-    O_APPEND = 8            00001000
-    O_WRONLY | O_APPEND =   00001001
-    ```
----
+Left shift and right shift will not overflow end bits into adjacent memory.
 
-## Tuesday, 10/24 File This Under Useful Information by Charles Weng
-**Tech News:** [Does the 3DS have a Future?](https://arstechnica.com/gaming/2017/04/after-nintendo-switch-does-the-3ds-have-a-future/)
+### other bitwise operators
 
-Today was mostly a review of file permissions that we covered back in intro.
+**~negation**
+- flip every bit
+- i.e. ~x
 
-We started off by linking octal to the file permissions (read, write and execute, abbreviated to rwx respectively) and went over the following:
-* there is 8 total combinations for those permissions
-* permissions could be represented by a single digit in octal
-  - this stems from a 3 digit binary representation in which a 1 represents permission given and 0 represents permission denied
-  - 6 will get converted to 110 which cross referenced with rwx means read and write permissions
-* there are 3 sets of permissions; one for user, one for group, and one for others
-  - others does NOT refer to everyone, but everyone not included by user and group
-  - you can view file permissions in the terminal with the 'ls -l' or 'll' command (long format listing), which shows metadata
-* this is used by the terminal command chmod to more easily modify file permissions for a file
-  - 644 is default
-  - `chmod 644 name.c` as opposed to `chmod u=rw,g=r,o=r name.c` or using separate flags
+**| or**
+- perform or for each pair of bits in (a,b)
+- i.e. a | b
 
-We then went on to talk about the first character that we saw in `drw-r--r--` which denoted the file as a file descriptor or a directory. This was just a file that listed out the pointer to and names of other files and is used in GUIs for organization.
+**& and**
+- perform and for each pair of bits in (a, b)
+- i.e. a & b
+- 10110111 & 01011100 = 00010100
 
-We also talked about how this relates to c with file interactions through stdio.h and how when you shouldn't be complaining about the limit on the amount of files you can have open (256). A relevant function for this is `getdtablesize()` which returns the first power of two greater than your table size. There will always be 3 files in the table: STDIN_FILENO: stdin, STDOUT_FILENO: stdout, and STDERR_FILENO: stderr
+**^ xor**
+- perform xor for each pair of bits in (a, b)
+- i.e. a ^ b
+- one or the other must be true; not both
+- 10110111 ^ 01011100 = 11101011
 
-## Monday, 10/23 A bit of wisdom by Kenny Chen
-**Tech News:** [Should We Fear the Rise of Intelligent Robots?](https://www.livescience.com/59802-should-we-fear-intelligent-robots.html)
-
-Today we discussed a few more `printf` formatting options for printing integers in different bases, ways to represent an integer in different bases, and bitwise operators.
-
-**Different Bases**
-
-`"%o"` prints an integer in **octal**, and `"%x"` prints an integer in **hexadecimal**. (Correspondingly, `"%d"` prints an integer in **decimal**. There is no formatting character for binary.)  
-So, for example, printing 13 with:  
-`"%d"` results in `13`  
-`"%o"` results in `15`  
-`"%x"` results in `d`  
-
-We can also represent integers in different bases:  
-In **binary**, we precede the digits with `0b`.  
-In **octal**, we precede the digits with `0`.  
-In **hexadecimal**, we precede the digits with `0x`.  
-```C
-int b = 0b1011; //11
-int o = 0122; //82
-int x = 0xa3; //163
-```
-These integers are all stored the same way; that is,  
-`0b1011`, `013`, `0xb`, and `11` are all the same.  
-
-**Bitwise Operators**
-
-`>>` is the right shift. It moves all the bits once to the right, and adds 0s to the front.  
-`<<` is the left shift. It moves all the bits once to the left, and adds 0s to the end.  
-Right shift and left shift do not affect memory outside of the integer.  
-
-So, if `char b = 0b1011;` (that is, `b`'s bits are `00001011`, then  
-`b = b >> 1;` would have `b` be the same as `00000101`. Then,  
-`b = b << 1;` would have `b` be the same as `00001010`.  
-
-`~` is negation. It flips every bit.  
-`|` is or. It performs or for each pair of bits.  
-`&` is and. It performs and for each pair of bits.  
-Lastly, `^` is xor. It performs xor for each pair of bits.  
-
-Now, suppose we have  
-`unsigned char a = 0b10110111;` and  
-`unsigned char b = 0b01011100;`. Then:  
-`~a` would be `01001000`.  
-`a | b` would be `11111111`.  
-`a & b` would be `00010100`.  
-`a ^ b` would be `11101011`.  
-
-
-At the end of class, a swap algorithm using xor was given.  
-Given the integers `a` and `b`:
-```C
-a = a ^ b;
-b = a ^ b;
-a = a ^ b;
-```
-swaps the values of `a` and `b`.
+xor swap:
+1. a = a ^ b;
+2. b = a ^ b;
+3. a = a ^ b;
 
 ---
+# 10.19.17 - Get Dem Bugs
 
-## Thursday, 10/19 Get Dem Bugs by Xing Tao Shi
-**Tech News:** [Samsung to Give Linux Desktop Experience to Smartphone Users](https://www.technewsworld.com/story/Samsung-to-Give-Linux-Desktop-Experience-to-Smartphone-Users-84896.html)
+Valgrind - memory issues
 
-**GDB**
-* stands for GNU debugger
-* You must compile with -g in order to use GDB
-```C
+## GDB - GNU Debugger
+- more general, like an all-purpose debugger
+- an interactive shell to run your program through
+```
+gcc -c broken.c
+gdb ./a.out
+
+(gdb) run
+
+// this shows the line in which the error occured, plus some buffer space
+(gdb) list
+
+// you can set break points
+(gdb) break <line number>
+(gdb) break <function name>
+
+// print variable values and arrays
+(gdb) print <variable>
+(gdb) print <array>
+
+// continue to next break point
+(gdb) continue
+
+// to end session
+(gdb) quit
+```
+
+### Commands from the gdb shell
+- run: runs the program until it ends / crashes
+- list: show the lines of code run around a crash
+- print <VAR>: print a variable
+- backtrace: show th current stack
+- break <line number>: creates a breakpoint at the given line
+
+Running a program in pieces:
+- continue: run the program until the next breakpoint
+- next: run the next line of the program only
+- step: run the next line of the program; if that is a function call, run the next line of that function
+
+---
+# 10.18.17 - Back to the Grind
+
+### valgrind
+- tool for debugging memory issues in C programs
+- You must compile with -g in order to use valgrind (and similar tools)
+Usage:
+```
 gcc -g foo.c
+valgrind --leak-check=yes ./a.out
 ```
-* Usage:
-```C
-$ gdb ./a.out
-```
-There are many things you can do with GDB such as:
-Run the program
-```C
-run
-```
-Place a break point at a line, this essential makes it so that when you run the program it stops here
-```C
-break line_number
-```
-Place a break point at a function, this essential makes it so that when you run the program it stops here
-```C
-break func_name
-```
-To continue from a break point until the next break point you can
-```C
-continue
-```
-To continue from a break point and execute the next line you can
-```C
-next
-```
-To continue from a break point and execute the next line or the next line of the function located in the next line you can
-```C
-step
-```
-Print a variable
-```C
-print variable
-```
-Show the broken code
-```C
-list
-```
-Quit the GDB shell
-```C
-quit
-```
----
-
-## Wednesday, 10/18 valgrind by Herman Lin
-**Tech News:** [LIGO Detects Fierce Collision of Neutron Stars for the First Time](https://www.nytimes.com/2017/10/16/science/ligo-neutron-stars-collision.html)
-
-**valgrind**
-* tool for debugging memory issues in C programs
-* You must compile with -g in order to use valgrind (and other similar tools)
-```C
-gcc -g foo.c
-```
-* Usage:
-```C
-$ valgrind --leak-check=yes <program>
-```
+This may create a separate debugging file (depending on your OS), which you should probably avoid adding to github. 
 
 ---
+# 10.12.17 - malloc & free: The Dynamic Duo!
 
-## Friday, 10/13 calloc & realloc by Fabiola Radosav
-**Tech News:** [Can we teach robots ethics?](http://www.bbc.com/news/magazine-41504285)
+## Dynamic Memory Allocation
 
-**calloc**
-```C
-void *calloc(size_t n, size_t x);
-```
-* like malloc but initializes memory to 0 (clears allocation)
-* allocates n * x bytes of memory
-* Example code:
-```C
+### `malloc(size_t x)` - Memory Allocation
+- allocates x bytes of memory (from the heap)
+- returns the address at the beginning of the allocation
+- returns a void *, always typecast to the correct pointer type.
+
+```c
 int *p;
-p = (int *)calloc(5, sizeof(int));
+p = (int *)malloc(5 * sizeof(int));
 ```
 
-**realloc**
-```C
-void *realloc(void *p, size_t x);
+### `free`
+
+Releases dynamically allocated memory.
+
+Takes one parameter, a pointer to the beginning of a dynamically allocated block of memory.
+
+**Every call to malloc/calloc should have a corresponding call to free.**
+
+```c
+int *p;
+p = (int *)malloc(20);
+free(p);
 ```
-* changes the amount of memory allocated to a given block (x is the new size)
-* p must be a pointer to the beginning of an allocated block of memory, but it does not have to be the original pointer
-* if x is smaller than the original size of the allocation, the extra bytes will be released
-* Example code:
-```C
+When calling free, the original pointer does not need to be used. If there are 3 pointers pointing to the same address (must be the beginning of the allocation), any one of the pointers will work.
+
+### `calloc(size_t n, size_t x)` - Clear Allocation
+- allocates n * x bytes of memory
+- ensures that each bit is set to 0
+- works like malloc in all other ways
+
+```c
+int *p;
+p = (int*)calloc(5, sizeof(int));
+```
+
+### `realloc(void *p, size_t x)` - Re-Allocation
+- changes the amount of memory allocated to a given block
+- `p` must be a pointer to the beginning of an allocated block of memory, but it does not have to be the original pointer.
+- if `x` is smaller than the original size of the allocation, the extra bytes will be released
+- if `x` is larger and there is no room after the original allocation, it will copy over the memory and return a different pointer (frees the old one)
+
+```c
 int *p;
 p = (int *)malloc(20);
 p = (int *)realloc(p, 40);
 ```
 
 ---
+# 10.10.17 - If you don't pay attention you'll get into a heap of trouble!
 
-## Thursday, 10/12 malloc & free: the dynamic duo! by Penn Wu
-**Tech News:** [Bitcoin rockets above $5,000 to all-time high](https://www.reuters.com/article/us-global-markets-bitcoin/bitcoin-rockets-above-5000-to-all-time-high-idUSKBN1CH0YQ)
-
-We spent most of the class writing code demonstrating either the functions `malloc` and `free` or `calloc` and `realloc`.
-
-**malloc**
-```C
-void *malloc(size_t x);
-```
-* allocates x bytes of memory dynamically (i.e., from the heap), and returns the address to the beginning of the allocated memory.
-* returns a void pointer, which you should typecast to the correct type like so:
-```C
-int *p;
-p = (int *)malloc(sizeof(int) * 5);
-```
-
-**free**
-```C
-void free(void *p);
-```
-* frees dynamically allocated memory starting from the pointer parameter
-* doesn't immediately mean that whatever data was stored there is gone, it just means that it isn't guaranteed to be there anymore
-* in other words, **don't use memory that you freed**
-
----
-
-## Tuesday, 10/10 and Wednesday 10/11 If you don't pay attention you'll get into a heap of trouble! by William Hong
-**Tech News:** [More Governments Test Out Cryptocurrency](http://www.investopedia.com/news/more-governments-test-out-cryptocurrencies/)
-
-### AIM: If you don't pay attention you'll get into a heap of trouble!
-
-We briefly discussed structs, below is prototyping a struct
-#### struct
-```C
+### struct
+We use the `.` operator to access a value inside a struct.
+```c
 struct foo {
-    int a;
-    char x;
+       int a;
+       char x;
+       
+       struct bar { double z; short pants; }
+       struct foo *next;
 };
-```
-Using the code above, we can declare variables as struct foo
-```C
-struct foo s;
-struct foo s2; //this is a different variable of type foo
-```
-Prototypes are different than directly declaring a struct such as below
-```C
-struct {int a; char x;} s;
-```
-Prototypes are meant to be used later, like a template
-
-IMPORTANT: We use the . operator to access a value inside a struct, see example below
-```C
+foo s;
 s.a = 10;
 s.x = '@';
 ```
-Structs can contain variables and even more structs. You can also have a pointer to a struct within the struct itself, thus making a linked list data structure
-```C
-struct foo{
-    //variables, etc
-    struct foo *next;
-};
-```
+`struct` can include structs within, as well as struct pointers.
+This is basically a node, which allows us to make things like linked lists!!!
 
-Note: even if we use a struct in the parameter of a function, it is stilled passed by value, which means a copy of the argument is made. Do this instead...
-```C
-void foo_stuff(struct foo *s); //as opposed to void foo_stuff(struct foo s)
-```
+You can make pointers to functions. If you put one inside a struct, it looks a lot like a method.
 
-Important note on the dot operator: . binds before *
-```C
+`.` binds before `*`
+```c
 struct foo *p;
 p = &s;
-(*p).x; //this is accessing the data in a pointer to a struct
+(*p).x;
 ```
-Additional note: anything you do to p will modify whatever's going on in x
+`*p.x` is the same thing as `*(p.x)`;
 
-IMPORTANT: to access data from a struct pointer, you can also use ->
-```C
-p->x; //this is the same as (*p).x
-```
-If there's a pointer inside a struct with another pointer to another struct, you can chain the arrows
+To access data from a struct pointer you can also use `->`.
+`p->x` is the same thing as `(*p).x`
 
-!!! Caution: you can typedef structs, but this will hide the fact that you are working with a struct
+You can typedef structs, but be careful because this will hide the fact that you are working with a struct.
 
-We also discussed memory, but didn't have time to talk about heap memory yet. Computer programs separate memory usage into two parts: stack and heap. Every program can have its own stack and heap
+## Stack v. Heap Memory
 
-Notes on stack memory
-- Stack memory stores all normally declared variables (including pointers and structs), arrays and function calls
-- Functions are pushed into the stack in the order they are called, and popped off when completed
-- When a function is popped off the stack, the stack memory associated with it (like an array for instance) is released. You can't use that memory later because it's gone
--The stack contains all the memory we learned so far in C, including arguments to functions. The copy of the argument(s) associated with that function is put onto the stack
+Computer programs seaprate memory usage into two parts: stack and heap.
 
-```C
-struct node{
-	int data;
-	struct node *next;
-}
+Every program can have its own stack and heap.
 
-struct node *insert_front(struct node *front, int d){
-	struct node new;
-	new.data = d;
-	new.next = front;
-	return &new;
-}
-```
-- On the above example, this looks good on paper. This should implement a linked list data structure
-- However, this is BAD. The struct node new would cease to exist because it's stack memory
-- Declaring a variable in a function puts it into the stack and it subsequently gets popped off
-
-
-
-Notes on Heap memory
-- Stores dynamically allocated memory
-- IMPORTANT DIFFERENCE FROM STACK MEMORY: data will remain in the heap until it is released manually by you or when the program terminates
-- Can be accessed through pointers
-- Can be accessed across many functions
-- Persists throughout the duration of the program's execution, until it terminates of course
-- A memory leak occurs when a program uses lots of heap memory
+### Stack Memory
+- Stores all normally declared variables (including pointers and structs), arrays and function calls.
+- Function are pushed onto the stack in the order they are called, and popped off when completed.
+- When a function is popped off the stack, the stack memory associated with it is released.
 
 ---
+# 10.11.17 - Yesterday continued.
 
-## Friday, 10/6 Finding your type by Jerome Freudenberg
-**Tech News:** [YouTube Changes Search Algorithms](https://www.theguardian.com/us-news/2017/oct/06/youtube-alters-search-algorithm-over-fake-las-vegas-conspiracy-videos)
+```c
+struct node {
+    int data;
+    struct node *next;
+};
 
-### AIM: Finding your type
+struct node *insert_front(struct node *front, int d){
+    struct node new;
 
-On Friday, we discussed useful keywords in C:
+    new.data = d;
+    new.next = front;
 
-#### typedef
--Usage:
-```C
-typedef <real type> <new name>;
+    return &new; // see note below
+}
+
+int main(){
+    struct node *list = NULL;
+    list = insert_front(list, 12);
+    return 0;
+}
 ```
--provides a new name for an existing data type
--Ex:
-```C
+* This will not work because the node is created within a function, and will "disappear" from memory once the function gets popped off the stack.
+
+### Heap Memory
+- Stores dynaminally allocated memory.
+- **Data will remain in the heap until it is released** (or the program terminates).
+- Can be accessed through pointers.
+- Can be accessed across many functions.
+
+---
+# 10.6.17 - Finding your type.
+
+### typedef
+Allows you to provide a new name for an existing data type.
+`typedef <real type> <new name>;`
+```c
 typedef unsigned long size_t;
 size_t x = 139; //x is really an unsigned long
 ```
--Can be used to improve portability
+**IMPORTANT** - The use of typedef is another in a long line of religious wars in programming (see emacs v. vim, tabs v. spaces, etc.)
 
-#### struct
--Usage:
-```C
-struct {int a; char x;} s;
+### struct
+Creates a new type that is a collection of values.
+`struct { int a; char x; } s;` makes `s` a variable of that type (that being `struct {int a; char x;}`)
+- this makes the size of `s` 8 (theoretically it would be a 5 byte size)
+
+`struct foo { int a; char x; };`
+Here, foo is a prototype for this kind of struct, to be used later: `struct foo s;`
+```c
+struct foo{
+       int a;
+       char x;
+};
 ```
--creates a new type that is a collection of values
--The example above is technically 5 bytes, but has extra padding so that the memory allocated is a power of 2
-
--You can also assign it to a variable:
-```C
-struct foo {int a; char x;};
-```
--This means that foo is a prototype for this kind of struct, to be used later
-		(e.g.)
-```C
-struct foo s1;
-```
--Note the semicolon after the curly brace as people tend to forget to place it there
-
-###### We also discussed what this dude, Linus, wrote about coding style:
-[His thoughts](https://www.kernel.org/doc/Documentation/process/coding-style.rst)
-
--Noteworthy things included that Hungarian notation is for the brain damaged
-
--He also mentioned typedefs are not for readability and should not be used for structures and pointers
 
 ---
+# 10.3.17 - **Make it so**
 
-## Tuesday, 10/3 Make It So by Eric Chen
-**Tech News:** [General Motors to go Electric](https://www.washingtonpost.com/news/innovations/wp/2017/10/02/death-of-diesel-begins-as-gm-announces-plans-for-all-electric-future/?utm_term=.7a940daf5ee4)
+### SEPARATE COMPILATION
+You can combine multiple c files into a c program by including them all in one gcc command.
+* **i.e.** gcc test.c string.c foo.c woohoo.c
+This creates a single executeable.
 
-AIM: Make it so
+You cannot have duplicate function or global variable names acrosss these files. This will result in an error (not a warning). 
+* **i.e.** multiple main functions
 
-Separate Compilation
-- You can combine multiple C files into a C program by including them all in one gcc command.
-- i.e. `gcc test.c string.c foo.c woohoo.c`
-- One and only one of these files must have a main function.
-- You cannot have duplicate functions or global variable names across these files.
+There must be a main function in order to create an executeable program.
 
-`gcc -c`
-- Compiles a C file into a .o file, it is not a fully functional program, but it is compiled code.  Do this to compile a .c file that does not contain a main() function.
-- .o files can be liked together with .c files through gcc.
+Including .h files: #include "<filename>"
 
-Make
-- Create compiling instructions and setup dependencies.
-- Standard name for the file is makefile.
-- Syntax:
-	```<TARGET>: <DEPENDENCIES>
-	[TAB]<RULES>```
-- `<TARGET>` can be either a file or just a name.
-- i.e.
+`gcc -c` compiles a c file into a .o file. It is not a fully functional program, but it is compiled code.
+Do this to compile a .c file that does not contain a main() function (to check for syntax errors).
+.o files can be linked together with .c files through gcc
+* **i.e.** gcc string.o main.o
+    
+### MAKE
+* Creates compiling instructions and sets up dependencies
+* Standard name for the file is makefile
 
+Syntax:
+```
+<TARGET>: <DEPENDENCIES>
+TAB<RULES>
+```
+For example:
 ```
 strtest: dwstring.o main.o
-	gcc -o strtest dwstring.o main.o
-
+    gcc -o strtest dwstring.o main.o
 dwstring.o: dwstring.c dwstring.h
-	gcc -c dwstring.c
-
+    gcc -c dwstring.c
 main.o: main.c dwstring.h
-	gcc -c main.c
+    gcc -c main.c
+```
+To run the makefile: `make`
 
+Every time you run make, only the target is checked, and any of its subsequent dependencies. 
+`touch` makes it seem like the file has been modified
+
+### More common things in make files
+```
 clean:
-	rm *.o
-	rm *~
-
+    rm *.o
+    rm *~
 run: all
-	./strtest
+    ./strtest
 ```
-- In order to run a makefile, the syntax is `make <TARGET>`
-	It will only make that specific target.
-	If `<TARGET>` is left blank, it will make the first target and all its dependencies only.
-- The clean target will run using `make clean`
-- The run target will compile all its dependencies and run automatically with `make run`
+In this case, `make run` will compile everything, and then run the program.
 
 ---
+# 9.29.17
 
-## Friday, 9/29 String Functions by Connie Lei
-**Tech News** [Microsofts's Nadella Wants To Help Coders Take A Quantum Leap](https://www.wired.com/story/microsofts-nadella-wants-to-help-coders-take-a-quantum-leap/)
-
-We started class in our groups and explained our homework, showing each function and running our test code. We then went over the functions together in class so we could have a class discussion about it and ask questions.
-
-You need to use `#include <string.h>` at the top of your file
-
-* **strcpy/strncpy**
-   * `strcpy( char * dest, char * src );`
-   * `strncpy( char * dest, char * src, int n);`
-   * These two functions copy strings from the source to the destination. The latter one allows you to choose the length of the source string. If you choose to copy a string of a length longer than the destination memory allocation, the null terminating is overwritten. You need to make sure to copy over the null terminating as well.
-* **strcat/strncat**
-   * `strcat( char * dest, char * src );`
-   * `strncat( char * dest, char * src, int n);`
-   * The two functions allow you to concatenate strings from the source to the destination. The destination string has to have enough space for both functions. The null termination from the destination string is overwritten with the first character in the source string.
-* **strcmp/strncmp**
-   * `strcmp( char * s1, char * s2 );`
-   * `strncmp( char * s1, char * s2, int n );`
-   * These function allows you to compare two strings, it returns s1 - s2 so if s1 is less than s2, a negative number is returned, a positive if s1 is greater and 0 if the two are equal. The latter function will only compare the first n characters of the string.
-* **strchr/strstr**
-   * `strchr( char * s1, char c );`
-   * `strstr( char * s1, char * s);`
-   * These function return a pointer to the first instance of the character or the index for the string. A null pointer will be returned if the string/character does not exist.
+The "n" versions of all the string functions ensure that the array does not go beyond the memory allocated to it.
+ - `strncpy(s, "hello", sizeOf(s));`
+ - `strncat(s1, s2, sizeOf(s1) - strlen(s2));`
+ 
 ---
+# 9.28.17 - A string of functions.
 
-## Thursday, 9/28 Functions with Strings by Gilvir Gill
-**Tech Noos** [San Francisco Sues Equifax over data breach](https://techcrunch.com/2017/09/27/san-francisco-sues-equifax-on-behalf-of-15-million-californians-affected-by-the-breach/)
+Array variable pointers are IMMUTABLE. You can modify the array itself, but not what the pointer is pointing to.
 
-We started clas by writing code that will return the length of the string, abusing the fact that String literals are automatically terminated with '\0's (null, or 0). We had the idea of 0 being false reinforced by realizing that we could just terminate with the boolean `(*(str+ i))`, which will return 0 when it lands on the null.
+You can only assign char arrays with `=` at declaration.
+- `char s[] = "zero";` --> ok
+- `s = "seven";`       --> not ok; s is an array pointer, and cannot be modified
 
+Char pointers can be assigned using `=` at any time.
+- `char *s = "zero";`  --> ok
+- `s = "seven";`       --> ok
 
-```C
-#include <stdio.h>
-int str_len(char * str) {
-    int i = -1;
-    while ((str[++i]));
-    return i;
+What a variable is initially created as (regular variable vs. array pointer) is important to keep in mind. Use arrays when you want to be able to modify a string.
+
+---
+# 9.27.17 - Ctrings
+**Strings** - character arrays (a string of characters...)
+- There is no string data type; only char.
+
+By convention, strings end with a null character (either '', 0, or '\0'; NOT '0' because it has a value).
+When you make a literal string using "", an immutable string is created in memory. There strings are automatically null terminated.
+
+All references to the same literal string refer to the same immutable string in memory.
+
+YOU CANNOT MODIFY LITERAL STRINGS.
+
+### DECLARING STRINGS
+`char s[256];`
+- normal array declaration
+- allocates 256 bytes
+`char s[256] = "imagine";`
+- allocates 256 bytes
+- creates the immutable string `"imagine"` and then copies it (including the terminating null) into the array
+`char s[] = "tuesday";`
+- allocates 8 bytes
+- creates the immutable string `"tuesday"` and then copies it (including the terminating null) into the array
+`char *s3 = "mankind";`
+- creates the immutable string `"mankind"` and returns a pointer to that string
+- Since the pointer is to an immutable piece of memory, you cannot modify strings created this way.
+
+---
+# 9.26.17 - Let's head to function town.
+Since function order matters, you can avoid issues by creating a function header.
+```c
+void print_array(int a[], int length);
+```
+
+You can also create a separate file of headers (stdio.h is a collection of headers).
+- For example, create `headers.h`, and place `#include "headers.h"` at the start of your code. This allows for portability.
+
+You must declare a function before you use it. This can be done in a few ways:
+1. Write the entire function at the top of your code, making sure to keep the order correct.
+2. Write the function headers at the top of your code, and then provide the full definition later.
+3. Put all the function headers in a separate file (ending in .h).
+
+---
+# 9.25.17 - How to write functioning code.
+
+`srand(time(NULL))` returns the number of seconds since 1.1.1970
+
+### ARRAYS AND POINTERS
+Array variables are immutable pointers. Pointers can be assigned to array variables (aka, arrays are immutable, pointers are not).
+```c
+int ray[5];
+int *rp = ray;
+```
+`ray[3]` is the same thing as `*(ray+3)`
+```
+ray[3] = *(ray+3);
+3[ray] = *(3+ray);
+```
+Bracket notation simply means to add the two and de-reference (but DO NOT do the second option because that is dumb).
+
+Formally put:
+`a[i]` notation is shorthand for `*(a+i)`
+
+`p++` means return p, then add 1
+`++p` means add 1, then return p
+
+### WRITING FUNCTIONS
+Function headers: `<return type> <name> (<parameters>)`
+All functions are pass by value. Function arguments are new variables that contain a copy of the data passed to them.
+```c
+doubla a = 2.3;
+    foo(a);
+...
+void foo(double x){
+    x = 59;
 }
-
-void main() {
-    char * s = "hello";
-    char * s0 = "";
-    printf("Length of \"%s\": %d\n", s, str_len(s));
-    printf("Length of \"%s\": %d\n", s0, str_len(s0));
+```
+When calling foo, a new variable will be created (i.e. x for a), so when modifying the variable the original will not be changed.
+If you want to actually modify the variable within the function, use pointers.
+```c
+void foo(double *x){
+    *x = 59;
 }
 ```
-We also reviewed the difference between different expressions, particularly mutable pointers, immutable arrays, immutable String literals, and their mutable copies held in array locations.
-
-For example:
-
-* `char *s3 = "Mankind"` just points to the immutable piece of memory that holds "Mankind"
-
-In addition, you can only assign char arrays with = at declaration. If you declare it with an = it first finds the literal that was created in the beginning in memory and then clones it in an O(n) procedure. On the other hand, if you declare a char pointer, it simply points to the literal. If you want to ensure that you have a mutable copy of a string, you want to declare it with an array. You can of course assign a pointer to it afterwards if needed.
-
-We were later told to examine one of four functions:
-* 0 : strcpy/strncpy
-* 1 : strcat/strncat
-* 2 : strcmp/strncmp
-* 3 : strchr/strstr
-
-for homework.
+When passing an array, you pass only the pointer.
 
 ---
-## Wednesday, 9/27 Strings in C by Anthony Hom
 
-**Tech News** [A smaller Echo and thee new Echo Plus from Amazon](https://www.theverge.com/2017/9/27/16375984/amazon-echo-plus-hands-on-impressions-photos)
+### Wednesday, 9/20 Try not to hurt yourself, the point is Sharp 
 
-We started class off by writing a block of code that had a char-typed pointer pointing to the string 'hello' and a char-typed array containing 'hello'. At the end the code contained a print statement that referred to the address of 'hello'. Afterwards, the class went over why the print statement with the 'hello' address was the same as the pointer's address as opposed to the array's address. Then we went to talk more about strings and memory addresses.
-
-```C
-#include <stdio.h>
-#include <stdlib.h>
-
-int main(){
-char *s = "hello";
-char s1[] = "hello";
-printf("s points to: %p\n", s);
-printf("s1 points to %p\n", s1);
-printf("address of \"hello\": %p\n", &"hello");
-
-// -----------------------------------------------
-
-char s2[5];
-printf("s: %s\n", s);
-s2[0]= 'h';
-s2[1] = 'i';
-s2[2] = 0;
-printf("s2: %s\n", s2);
-
-return 0;
-}
-```
-
-### About that address...
-* We determined that in the first part of the block of code above, &hello refers to an address of the literal string 'hello' which array s1 does not do.
-
-### What are strings?
-* Strings are char arrays, or an array of char.
-* By convention, strings end with a null character.
-* Examples include either `''` or `C 0 ` or ` '\0' ` (Escape 0). We do this for the escape 0 because it is an ascii value.
-* IMPORTANT: The null character is useful for using while loops instead of length. Why? Because we do not know the length of the string in C and we cannot return the size back.
-
-### More on the null
-* When you make a literal string using ` "" `, an immutable string is created in the memory. These strings are automatically null terminated.
-
-### How does C know our address?
-* When using multiple literals, C does not make a copy of them and C will refer to the same string.
-* All references to the same literal string refers to the same immutable string in the memory.
-
-### Declaring Strings
-* `char s[256]` is a normal array declaration. This array allocates 256 bytes. We could use all 256 bytes, but some things could break .
-* It is important that we use 255 bytes of this array and leave the last byte null.
-
-### Examples:
-```C
-char s[256] = "Imagine"; // Allocates 256 bytes and creates an immutable string "Imagine"
-// It then copies (including the terminating null) into the array
-```
-```C
-char s[] = "Tuesday"; //Array s allocates 8 bytes.
-// It creates an immutable string "Tuesday" and then copies the string and the null into the array.
-```
-
-### The last part of the block of code in the Do Now!
-* Given our array s2 with 5 bytes, we fill in index 0 to 1 with 'hi', followed by the terminating null.
-* IMPORTANT: After the null, anything that we put in the array afterwards will not be displayed nor is used by the array.
-
----
-## Tuesday, 9/26 Let's Head to Function Town, by Jonathan Wong
-
-**Tech News** [Twitter is experimenting with 280-char tweets](https://www.theverge.com/2017/9/26/16363912/twitter-character-limit-increase-280-test)
-
-Once we came into class, we were asked to bring up a copy of HW#3, the array_swap hw using pointers. Upon the completion of this, we went over how to create functions again.  
-
-### Passing Arrays
-
-* Arrays are pointers, and thus only store a memory address
-*This means that if you pass an array to a function, you're simply passing the memory address, NOT a copy.
-
-```C
-int arr[2];
-arr[0] = 0;
-
-void changeArr(int arr[]){
-  arr[0] = 5;
-}
-
-changeArr(arr);
-
-printf("arr 0 is %d\n", arr[0]); // will return 5
-```
-
-### Getting around pass by value
-
-* If we want to use a function to change a variable, we can pass a pointer as a parameter to the function.
-
-### Using Functions in a Procedural-based language
-* Since C is a procedural based language, using functions can get a little tricky, especially when calling functions within other functions. This leaves three options.
-  1. Declare all the functions in such an order such that the functions that other functions rely on are declared first. This can get messy and very confusing.
-  2. C has something called function headers. They look like this.
-  ```C
-  void changeArr(int arr[]);
-  ```
-  Or this.
-  ```C
-  void changeArr(int* );
-  ```
-  A function header is simply the first line of the function. It does not require parameter names, as it only type checks.
-
-  3. Option 2, but outsourcing the function headers to another file. In C, these are header files, and they typically end in `.h`. To do this, you need to let the compiler know where your header file is.
-  ```C
-  #include “PATH/filename.h”
-  ```
-  Note that angle brackets are not included, being replaced by quotes instead. This is because the angle brackets are for special locations like `usr/bin` where standard libraries are stored.
-
-### Misc.
-
-* You can use pointers and arrays in very similar manners.
----
-## Thursday, 9/25 How to Write Functioning Code, by alex lu
-
-**Tech News** [In flight Netflix will be available on more airlines in 2018](https://www.engadget.com/2017/09/25/in-flight-netflix-comes-to-more-airlines/)
-
-We kicked off class with a quick presentation of Charles' homework, followed by some relevant questions pertaining to pointers.
-### Pointers and Arrays
-* Array variables are immutable pointers
-* Pointers can be assigned to array variables
-
-We learned that `array[17]` is simply shorthand for `*(array + 3)`. This can get us into some fun and interesting trouble.
-```
-int array[100];
-array[17] = *(array + 17)
-==> *(17 + array)
-==> 17[array]
-```
-Hm... This doesn't seem too logical. Don't do it! But this emphasises that `array[17]` is nothing more than shorthand, so the communative property gives us the strange expression `17[array]`. Let's talk about functions.
-
-### Function Stuff
-* Header format: <return type>, <name>, (<arguments>){...}
-* ALL functions are "pass by value"
-* This means that if a fxn `foo(int a)` takes in some int k, the fxn will create a copy of k, named a: `foo(k) ==> a = k`
-* The arguments are just variables containing the value passed to them
----
-## Wednesday, 9/20 Try not to hurt yourself, the point is Sharp by Max Chan
-
-**Tech News** [Despite all odds, Hyperloop One just raised another $85 million](https://techcrunch.com/2017/09/22/despite-all-odds-hyperloop-one-just-raised-another-85-million/)
-
-We started off class today by finishing up arrays from the previous day.  The array variable only tracks where the memory allocated for the array is, which is why we can go outside the bounds of the array, and won't get an error.  Then we moved onto pointers.
 
 ### Pointers
 * Pointers are variable designed to store memory addresses.
@@ -1818,10 +1629,7 @@ c++; // will add 1 to c
 The reason 4 is added to p is because p points to an int, which has 4 bytes of memory.  Likewise, 1 is added to c because a char is allocated only 1 byte.
 
 
-## Tuesday, 9/19 Arrays and Memory by Winnie Chen
-**Tech News:** [When Driver and Car Share the Same Brain](http://nautil.us/issue/51/limits/when-driver-and-car-share-the-same-brain)
----
-**Aim:** What’s the point of it all?
+## Tuesday, 9/19 Arrays and Memory 
 
 ### Arrays
 
@@ -1866,24 +1674,18 @@ There is no boundary checking.
 
 
 ---
-## Monday, 9/18 More on Variables + Arrays by Mansour Elsharawy
-
-**Tech News!:** [ANDROID OREO FEATURES Y'ALL](http://www.androidauthority.com/android-8-0-review-758783/)
-
-Aim: A vast array of possibilities
-
-In the Do Now, we discussed with our partners any interesting, weird, or confusing things/issues we found while working on our Project Euler problems. Then we delved a more into variables in C!
+## Monday, 9/18 A vast array of possibilities
 
 ### More on Variables!
 
-First off, character literals can be denoted by single quotes instead of their numerical denomination.
+Character literals can be denoted by single quotes instead of their numerical denomination.
 Example: `char c = 'A';` and `char c = 65;` effectively do the same thing, but one is much more obvious as representing the character A.
 
-String literals also exist, even though there is no String data type in C.
+String literals also exist 
 Example: `"Hello!"`
 
 When declaring variables, the *order* in which you declare variables (and by extension, functions) matters.
-Example...
+
 
 ```C
 
@@ -1952,15 +1754,9 @@ Cheers!
 
 
 ---
-## Thursday, 9/14 Primitives by Jeremy Sharapov
+## Thursday, 9/14 Primitives 
 
-**Interesting News:** [US bans Kaspersky software from government agencies](https://www.cnet.com/news/us-bans-kaspersky-software-from-government-agencies-trump-dhs-russia/)
-
-**Bonus (I'm sick of Apple so here's some Google):** [Pixel 2 Launches on October 4th](https://arstechnica.com/gadgets/2017/09/google-teaser-site-promises-a-pixel-2-launch-on-october-4/)
-
-Aim: Always read the fine print!
-
-For our Do Now, we listed all of the primitives in Java, which are:
+Primitives in Java:
 * int
 * char
 * bool
@@ -2010,9 +1806,7 @@ However, do note that the size can be platform dependent; use `sizeOf(<Type>)` t
 |       Pointer       |          %p          |
 
 ---
-## Wednesday, 9/13 Variables are the Spice of Life by Jennifer Zhang
-
-**Interesting News:** [Apple Face ID](http://www.popsci.com/apple-face-ID)
+## Wednesday, 9/13 Variables are the Spice of Life 
 
 * `man` is a command that will display a user manual
     * The manual is divided into sections (we talked about the first three):
@@ -2046,14 +1840,7 @@ Although warnings will still allow you to compile and run your code, it is ideal
         2. `#include <stdlib.h>`
 
 ---
-## Tuesday, 9/12 Hello, World! by Jake Goldman
-
-**Interesting News:** [Can AI recreate a game engine?](https://www.digitaltrends.com/computing/ai-super-mario-bros-game-engine/)
-
-**Bonus:** [Obligatory iPhone X hype](https://www.wired.com/story/apple-iphone-x-iphone-8/)
-
-We began class by looking at a basic hello world program in C:
-
+## Tuesday, 9/12 Hello, World! 
 ```C
 int main(){
   printf("Hello Everybody!\n");
@@ -2077,9 +1864,7 @@ C Design Choices:
 * C syntax is very similar to Java syntax (Java syntax was based on C)
 
 ---
-## Monday, 9/11 Basic C Code by Helen Ye
-
-**Interesting News:** [Pluto's features are being named!](http://www.skyandtelescope.com/astronomy-news/first-pluto-features-officially-named/)
+## Monday, 9/11 Basic C Code 
 
 #### Aim: Let's C what you can do
 
@@ -2093,19 +1878,5 @@ Basic C code
 	* gcc option: -o \<file\> compiles to the given file name
 	* Run file with ./\<file\>
 		* C checks the $PATH for the file if you just type in the file name, unless you specify  it's directory
-
----
-## Wednesday, 9/6 Blissfull respite, I hardly knew ye by Clyde "Thluffy" Sinclair
-
-**Interesting Tech News:** [Do You Even Olin?](https://blog.ledwards.com/the-college-that-produces-founders-at-3-times-the-rate-of-stanford-2c53ea44f91e)
-
-Don't forget, each new post should go above the one before. If you are late in posting, please put yours in the correct position.
-
-#### Look, it's a list! ####
-* Blah
-* Blah
-* Blah
-
-Below you'll find a horizonal bar, please put one at the end of your post.
 
 ---
