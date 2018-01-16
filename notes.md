@@ -1,3 +1,91 @@
+# 1.16.18 - Cisco in an hour 3: In 3-D
+  
+### IPv4 Packet
+IPv4 Packet Format: 
+
+  header | source | destination | data 
+  --- | --- | --- | --- 
+  12B | 4B | 4B | Variable 
+  
+  - *header:* see above
+  - *source&destination:* IPv4 Addresses
+  - *data:* MTU = 65,536 bytes: data will be fragmented if data is larger than this
+  - *NOTE:* No built-in checksum
+  
+### Routing
+- Routers may break IPv4 packets into fragments
+- When a router receives a packet, it has 2 options:
+- 1. Send the packet to th attached local network
+- 2. Forward the packet to a different router. 
+
+Traceroute is a utility to track where packets are going, and the path they take
+
+`$traceroute homer.stuy.edu`
+1. Packet first goes to 192.168.1.1, the local router 
+2. Packet then goes to 149.89.150.100, homer.stuy.edu 
+
+NOTE: no switches listed, as switches are not on the internet layer.
+
+`$route -n`
+- This command line tool will show what gateway a router will send a given IP to, prints a routing table 
+- The IP 0.0.0.0 means any IP address (not already listed) 
+- The IP 149.89.0.0 means any IP that starts with 149.89, thus any IP on the stuy local network
+- A gateway of 0.0.0.0 means not leaving the local network
+
+Differences Between IPv4 and IPv6
+
+blob | IPv4 | IPv6
+--- | --- | ---
+Address Space | 2^32 | 2^128 
+Packet Format | Header has checksum and fragment info | Headers have no checksum/fragment info
+MTU | MTU of 65,536 | MTU of 2^32, called a jumbogram
+Fragmenting | Fragments | Does not fragment
+
+# 1.12.18 - Cisco in an hour 2: Electric Boogaloo
+
+### Link Layer
+In order for data to be sent between computers:
+- Each computer needs a uniqe address (MAC Address).
+- The data needs to be sent in a standardized format (Frames).
+
+#### MAC (Media Access Control) Address
+- 6-Byte Hex address: `a:00:1e:b9:70:f6`
+- Only need to be unique on the same local network (not used for Internet traffic).
+
+#### Ethernet Frames
+Each frame has the following format:
+
+prefix | dest | source | type | data | checksum
+--- | --- | --- | --- | --- | ---
+8B | 6B | 6B | 2B | variable | 4B
+- *prefix:* 10101010 x7 + 10101011
+- *dest & source:* MAC addresses
+- *data:* MTU (Maximum Transmission Unit) of 1500B
+- *checksum:* ensures data integrity; designed to verify that the data received is the data sent
+
+### Internet Layer
+Transmission of data between two separate networks.  
+Major features of this layer are addressing and routing.
+- *routers:* physical devices used to connect different local networks  
+Internet layer traffic ignores the specifics of link layer traffic. 
+```
+    switch --- router --- switch
+```
+#### IP Packets
+Data sent over the internet layer is formatted into IP packets.
+IPv4 packet header:
+
+type | size | fragment info | ttl | protocol | header checksum
+--- | --- | --- | --- | --- | ---
+2B | 2B | 4B | 1B | 1B | 2B  
+- *type:* IPv4 / v6, length of the header
+- *size:* total size of the packet
+- *fragment info:* full payloads may be broken into multiple fragments. Each packet will count the number of fragments and its individual fragment number.
+- *ttl (time-to-live):* maximum number of hops a packet can make before reaching its destination, a hop is a step such as computer -> stuy local network router or stuy local network router -> gateway between stuy and the rest of the world
+- *protocol:* TCP / UDP
+- *header checksum:* only for the header, not full packet
+
+---
 # 1.11.18 - Cisco in an hour
 
 ### Layer Models of Networking
@@ -38,11 +126,11 @@ With **thicknet** and **thinnet**, adding more computers to the network weakened
 - **downsides:** IBM owned the patent, and so everyone had to pay IBM to use it
 
 #### ethernet (what we use today)
-- multiple computers connect to a single hub or switch
+- multiple computers connect to a single hub or switch 
+- Ethernet data is sent in frames
 
 **hub:** broadcasts the data to all the computers  
 **switch:** sends dat ato a specific computer
-
 ---
 # 1.5.18, 1.8.18 - Stop. Collaborate, and listen
 
